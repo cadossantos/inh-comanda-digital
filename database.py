@@ -8,14 +8,30 @@ def init_db():
     """Inicializa o banco de dados com as tabelas necessárias"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    
+
     # Tabela de quartos
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS quartos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             numero TEXT UNIQUE NOT NULL,
-            hospede TEXT,
-            status TEXT DEFAULT 'ocupado'
+            tipo TEXT DEFAULT 'standard',
+            status TEXT DEFAULT 'disponivel'
+        )
+    ''')
+
+    # Tabela de hospedes
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS hospedes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            documento TEXT,
+            telefone TEXT,
+            quarto_id INTEGER NOT NULL,
+            data_checkin TEXT NOT NULL,
+            data_checkout TEXT,
+            assinatura_cadastro BLOB,
+            ativo INTEGER DEFAULT 1,
+            FOREIGN KEY (quarto_id) REFERENCES quartos (id)
         )
     ''')
     
@@ -44,6 +60,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS consumos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             quarto_id INTEGER NOT NULL,
+            hospede_id INTEGER,
             produto_id INTEGER NOT NULL,
             quantidade INTEGER DEFAULT 1,
             valor_unitario REAL NOT NULL,
@@ -53,6 +70,7 @@ def init_db():
             assinatura BLOB,
             status TEXT DEFAULT 'pendente',
             FOREIGN KEY (quarto_id) REFERENCES quartos (id),
+            FOREIGN KEY (hospede_id) REFERENCES hospedes (id),
             FOREIGN KEY (produto_id) REFERENCES produtos (id),
             FOREIGN KEY (garcom_id) REFERENCES garcons (id)
         )
@@ -64,11 +82,12 @@ def init_db():
 
 
 # ===== FUNÇÕES PARA QUARTOS =====
-def adicionar_quarto(numero, hospede=""):
+def adicionar_quarto(numero, hospede="", tipo="standard"):
+    """Adiciona um novo quarto"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO quartos (numero, hospede) VALUES (?, ?)", (numero, hospede))
+        cursor.execute("INSERT INTO quartos (numero, tipo) VALUES (?, ?)", (numero, tipo))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
@@ -84,6 +103,119 @@ def listar_quartos(apenas_ocupados=True):
         df = pd.read_sql_query("SELECT * FROM quartos ORDER BY numero", conn)
     conn.close()
     return df
+
+def atualizar_status_quarto(quarto_id, novo_status):
+    """Atualiza o status de um quarto"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE quartos SET status=? WHERE id=?", (novo_status, quarto_id))
+    conn.commit()
+    conn.close()
+
+
+# ===== FUNÇÕES PARA HÓSPEDES =====
+def adicionar_hospede(nome, documento, telefone, quarto_id, assinatura_bytes=None):
+    """Adiciona um novo hóspede (check-in)"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    data_checkin = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    cursor.execute('''
+        INSERT INTO hospedes (nome, documento, telefone, quarto_id, data_checkin, assinatura_cadastro, ativo)
+        VALUES (?, ?, ?, ?, ?, ?, 1)
+    ''', (nome, documento, telefone, quarto_id, data_checkin, assinatura_bytes))
+
+    hospede_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    return hospede_id
+
+def listar_hospedes_quarto(quarto_id, apenas_ativos=True):
+    """Lista hóspedes de um quarto específico"""
+    conn = sqlite3.connect(DB_NAME)
+
+    if apenas_ativos:
+        df = pd.read_sql_query(
+            "SELECT * FROM hospedes WHERE quarto_id=? AND ativo=1 ORDER BY nome",
+            conn,
+            params=(quarto_id,)
+        )
+    else:
+        df = pd.read_sql_query(
+            "SELECT * FROM hospedes WHERE quarto_id=? ORDER BY nome",
+            conn,
+            params=(quarto_id,)
+        )
+
+    conn.close()
+    return df
+
+def listar_todos_hospedes_ativos():
+    """Lista todos os hóspedes ativos (check-in feito, sem check-out)"""
+    conn = sqlite3.connect(DB_NAME)
+
+    query = '''
+        SELECT h.*, q.numero as numero_quarto
+        FROM hospedes h
+        JOIN quartos q ON h.quarto_id = q.id
+        WHERE h.ativo = 1
+        ORDER BY q.numero, h.nome
+    '''
+
+    df = pd.read_sql_query(query, conn)
+    conn.close()
+    return df
+
+def obter_hospede(hospede_id):
+    """Obtém dados de um hóspede específico"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM hospedes WHERE id=?", (hospede_id,))
+    resultado = cursor.fetchone()
+    conn.close()
+    return resultado
+
+def obter_assinatura_hospede(hospede_id):
+    """Obtém a assinatura cadastrada de um hóspede"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT assinatura_cadastro FROM hospedes WHERE id=?", (hospede_id,))
+    resultado = cursor.fetchone()
+    conn.close()
+    return resultado[0] if resultado else None
+
+def atualizar_assinatura_hospede(hospede_id, assinatura_bytes):
+    """Atualiza a assinatura de um hóspede"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE hospedes SET assinatura_cadastro=? WHERE id=?", (assinatura_bytes, hospede_id))
+    conn.commit()
+    conn.close()
+
+def fazer_checkout_quarto(quarto_id):
+    """
+    Realiza checkout de todos os hóspedes de um quarto
+    Marca hóspedes como inativos e libera o quarto
+    """
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    data_checkout = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Atualizar hóspedes
+    cursor.execute('''
+        UPDATE hospedes
+        SET ativo = 0, data_checkout = ?
+        WHERE quarto_id = ? AND ativo = 1
+    ''', (data_checkout, quarto_id))
+
+    # Liberar quarto
+    cursor.execute("UPDATE quartos SET status='disponivel' WHERE id=?", (quarto_id,))
+
+    conn.commit()
+    conn.close()
 
 
 # ===== FUNÇÕES PARA PRODUTOS =====
@@ -121,37 +253,39 @@ def adicionar_garcom(nome, codigo):
 def validar_garcom(codigo):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, nome FROM garcons WHERE codigo=?", (codigo,))
+    cursor.execute("SELECT id, nome, perfil FROM garcons WHERE codigo=?", (codigo,))
     resultado = cursor.fetchone()
     conn.close()
-    return resultado  # Retorna (id, nome) ou None
+    return resultado  # Retorna (id, nome, perfil) ou None
 
 
 # ===== FUNÇÕES PARA CONSUMOS =====
-def adicionar_consumo(quarto_id, produto_id, quantidade, valor_unitario, garcom_id, assinatura=None):
+def adicionar_consumo(quarto_id, hospede_id, produto_id, quantidade, valor_unitario, garcom_id, assinatura=None):
+    """Adiciona um novo consumo vinculado a um hóspede"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    
+
     valor_total = quantidade * valor_unitario
     data_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
+
     cursor.execute('''
-        INSERT INTO consumos 
-        (quarto_id, produto_id, quantidade, valor_unitario, valor_total, garcom_id, data_hora, assinatura)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (quarto_id, produto_id, quantidade, valor_unitario, valor_total, garcom_id, data_hora, assinatura))
-    
+        INSERT INTO consumos
+        (quarto_id, hospede_id, produto_id, quantidade, valor_unitario, valor_total, garcom_id, data_hora, assinatura)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (quarto_id, hospede_id, produto_id, quantidade, valor_unitario, valor_total, garcom_id, data_hora, assinatura))
+
     conn.commit()
     conn.close()
 
-def listar_consumos(quarto_id=None, status='pendente'):
+def listar_consumos(quarto_id=None, hospede_id=None, status='pendente'):
+    """Lista consumos com filtros opcionais"""
     conn = sqlite3.connect(DB_NAME)
-    
+
     query = '''
-        SELECT 
+        SELECT
             c.id,
             q.numero as quarto,
-            q.hospede,
+            h.nome as hospede,
             p.nome as produto,
             c.quantidade,
             c.valor_unitario,
@@ -161,24 +295,74 @@ def listar_consumos(quarto_id=None, status='pendente'):
             c.status
         FROM consumos c
         JOIN quartos q ON c.quarto_id = q.id
+        LEFT JOIN hospedes h ON c.hospede_id = h.id
         JOIN produtos p ON c.produto_id = p.id
         LEFT JOIN garcons g ON c.garcom_id = g.id
         WHERE 1=1
     '''
-    
+
     params = []
     if quarto_id:
         query += " AND c.quarto_id = ?"
         params.append(quarto_id)
+    if hospede_id:
+        query += " AND c.hospede_id = ?"
+        params.append(hospede_id)
     if status:
         query += " AND c.status = ?"
         params.append(status)
-    
+
     query += " ORDER BY c.data_hora DESC"
-    
+
     df = pd.read_sql_query(query, conn, params=params)
     conn.close()
     return df
+
+def obter_resumo_consumo_quarto(quarto_id):
+    """Obtém resumo detalhado de consumo de um quarto para checkout"""
+    conn = sqlite3.connect(DB_NAME)
+
+    # Consumos por hóspede
+    query_hospedes = '''
+        SELECT
+            h.id,
+            h.nome,
+            COUNT(c.id) as total_consumos,
+            COALESCE(SUM(c.valor_total), 0) as total_valor
+        FROM hospedes h
+        LEFT JOIN consumos c ON h.id = c.hospede_id AND c.status = 'pendente'
+        WHERE h.quarto_id = ? AND h.ativo = 1
+        GROUP BY h.id, h.nome
+        ORDER BY h.nome
+    '''
+
+    # Consumos detalhados
+    query_detalhes = '''
+        SELECT
+            c.id,
+            h.nome as hospede,
+            p.nome as produto,
+            c.quantidade,
+            c.valor_unitario,
+            c.valor_total,
+            c.data_hora
+        FROM consumos c
+        LEFT JOIN hospedes h ON c.hospede_id = h.id
+        JOIN produtos p ON c.produto_id = p.id
+        WHERE c.quarto_id = ? AND c.status = 'pendente'
+        ORDER BY c.data_hora DESC
+    '''
+
+    resumo_hospedes = pd.read_sql_query(query_hospedes, conn, params=(quarto_id,))
+    detalhes_consumos = pd.read_sql_query(query_detalhes, conn, params=(quarto_id,))
+
+    conn.close()
+
+    return {
+        'resumo_hospedes': resumo_hospedes,
+        'detalhes_consumos': detalhes_consumos,
+        'total_geral': resumo_hospedes['total_valor'].sum() if not resumo_hospedes.empty else 0
+    }
 
 def marcar_consumo_faturado(consumo_id):
     conn = sqlite3.connect(DB_NAME)
@@ -186,6 +370,19 @@ def marcar_consumo_faturado(consumo_id):
     cursor.execute("UPDATE consumos SET status='faturado' WHERE id=?", (consumo_id,))
     conn.commit()
     conn.close()
+
+def marcar_consumos_quarto_faturado(quarto_id):
+    """Marca todos os consumos pendentes de um quarto como faturado"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE consumos SET status='faturado' WHERE quarto_id=? AND status='pendente'",
+        (quarto_id,)
+    )
+    linhas_afetadas = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return linhas_afetadas
 
 def obter_assinatura(consumo_id):
     conn = sqlite3.connect(DB_NAME)
@@ -201,10 +398,130 @@ def total_por_quarto(quarto_id):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT SUM(valor_total) 
-        FROM consumos 
+        SELECT SUM(valor_total)
+        FROM consumos
         WHERE quarto_id=? AND status='pendente'
     ''', (quarto_id,))
     resultado = cursor.fetchone()
     conn.close()
     return resultado[0] if resultado[0] else 0.0
+
+
+# ===== FUNÇÕES PARA ASSINATURA DE SEGURANÇA =====
+def atualizar_assinatura_quarto(quarto_id, assinatura_bytes):
+    """Atualiza a assinatura cadastrada de um quarto"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE quartos SET assinatura_cadastro=? WHERE id=?", (assinatura_bytes, quarto_id))
+    conn.commit()
+    conn.close()
+
+def obter_assinatura_quarto(quarto_id):
+    """Obtém a assinatura cadastrada de um quarto"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT assinatura_cadastro FROM quartos WHERE id=?", (quarto_id,))
+    resultado = cursor.fetchone()
+    conn.close()
+    return resultado[0] if resultado else None
+
+def validar_assinatura_nao_vazia(imagem_bytes):
+    """
+    Valida se a assinatura não está vazia (apenas fundo branco)
+
+    Returns:
+        tuple: (valida, percentual_preenchido)
+    """
+    import numpy as np
+    from PIL import Image
+    import io
+
+    try:
+        img = Image.open(io.BytesIO(imagem_bytes))
+        img_np = np.array(img.convert('L'))
+
+        # Calcular percentual de pixels não brancos
+        pixels_total = img_np.size
+        pixels_nao_brancos = np.sum(img_np < 250)  # Threshold para considerar "não branco"
+        percentual = (pixels_nao_brancos / pixels_total) * 100
+
+        # Considerar válida se pelo menos 0.5% dos pixels estão preenchidos
+        valida = percentual >= 0.5
+
+        return (valida, percentual)
+    except:
+        return (False, 0.0)
+
+
+def comparar_assinaturas(assinatura_cadastro_bytes, assinatura_atual_bytes, threshold=0.6):
+    """
+    Compara duas assinaturas usando SSIM (Structural Similarity Index)
+
+    Args:
+        assinatura_cadastro_bytes: Bytes da assinatura cadastrada
+        assinatura_atual_bytes: Bytes da assinatura atual
+        threshold: Limite de similaridade (0-1). Padrão: 0.6 (60%)
+
+    Returns:
+        tuple: (similaridade, aprovado, mensagem_debug)
+            - similaridade: valor entre 0 e 1
+            - aprovado: True se similaridade >= threshold
+            - mensagem_debug: informações para debug
+    """
+    import cv2
+    import numpy as np
+    from skimage.metrics import structural_similarity as ssim
+    from PIL import Image
+    import io
+
+    try:
+        print("\n=== DEBUG: Comparação de Assinaturas ===")
+
+        # Validar se assinaturas não estão vazias
+        valida_cadastro, perc_cadastro = validar_assinatura_nao_vazia(assinatura_cadastro_bytes)
+        valida_atual, perc_atual = validar_assinatura_nao_vazia(assinatura_atual_bytes)
+
+        print(f"Assinatura cadastrada: {perc_cadastro:.2f}% preenchida")
+        print(f"Assinatura atual: {perc_atual:.2f}% preenchida")
+
+        if not valida_cadastro:
+            print("AVISO: Assinatura cadastrada está vazia!")
+            return (0.0, False, "Assinatura cadastrada está vazia")
+
+        if not valida_atual:
+            print("AVISO: Assinatura atual está vazia!")
+            return (0.0, False, "Assinatura atual está vazia")
+
+        # Converter bytes para imagens
+        img_cadastro = Image.open(io.BytesIO(assinatura_cadastro_bytes))
+        img_atual = Image.open(io.BytesIO(assinatura_atual_bytes))
+
+        # Converter para numpy arrays e escala de cinza
+        img_cadastro_np = np.array(img_cadastro.convert('L'))
+        img_atual_np = np.array(img_atual.convert('L'))
+
+        print(f"Shape cadastro: {img_cadastro_np.shape}")
+        print(f"Shape atual: {img_atual_np.shape}")
+
+        # Redimensionar imagens para o mesmo tamanho (se necessário)
+        if img_cadastro_np.shape != img_atual_np.shape:
+            img_atual_np = cv2.resize(img_atual_np, (img_cadastro_np.shape[1], img_cadastro_np.shape[0]))
+            print(f"Imagem redimensionada para: {img_atual_np.shape}")
+
+        # Calcular SSIM
+        similaridade = ssim(img_cadastro_np, img_atual_np)
+        aprovado = similaridade >= threshold
+
+        print(f"SSIM: {similaridade:.4f}")
+        print(f"Threshold: {threshold}")
+        print(f"Aprovado: {aprovado}")
+        print("=" * 40)
+
+        mensagem = f"SSIM: {similaridade:.4f}, Threshold: {threshold}, Aprovado: {aprovado}"
+        return (similaridade, aprovado, mensagem)
+
+    except Exception as e:
+        print(f"ERRO ao comparar assinaturas: {e}")
+        import traceback
+        traceback.print_exc()
+        return (0.0, False, f"Erro: {str(e)}")
