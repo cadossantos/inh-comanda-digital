@@ -6,12 +6,20 @@ Visualização de consumos pendentes e gerenciamento
 import streamlit as st
 from PIL import Image
 import io
-import database as db
-import utils
+from src import database as db
+from src import utils
 
 
 
 # Aplicar CSS customizado
+# Configuração da página
+st.set_page_config(
+    page_title="📊 Painel Recepção",
+    page_icon="📊",
+    layout="wide"
+)
+
+
 utils.aplicar_css_customizado()
 
 # Inicializar banco

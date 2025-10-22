@@ -4,8 +4,8 @@ Página inicial e Login
 """
 
 import streamlit as st
-import database as db
-import utils
+from src import database as db
+from src import utils
 
 # Configuração da página
 st.set_page_config(
@@ -88,7 +88,7 @@ if not st.session_state.logged_in:
             - **Administrador**: Acesso total
 
             ---
-            *Versão: 0.5.0 (Multi-page)*
+            *Versão: 0.6.2 (Multi-page)*
             """)
 
 else:
@@ -187,4 +187,4 @@ else:
 
 # Rodapé
 st.divider()
-st.caption("🏖️ Ilheus North Hotel - Sistema de Gestão | Versão 0.5.0 Multi-page")
+st.caption("🏖️ Ilheus North Hotel - Sistema de Gestão | Versão 0.6.2 Multi-page")

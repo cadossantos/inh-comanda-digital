@@ -6,13 +6,21 @@ Página para recepcionistas realizarem check-out e fechamento de conta
 import streamlit as st
 from PIL import Image
 import io
-import database as db
-import utils
+from src import database as db
+from src import utils
 import time
 
 
 
 # Aplicar CSS customizado
+# Configuração da página
+st.set_page_config(
+    page_title="🏁 Check-out",
+    page_icon="🏁",
+    layout="wide"
+)
+
+
 utils.aplicar_css_customizado()
 
 # Inicializar banco
@@ -61,7 +69,7 @@ else:
 
             with col1:
                 st.write(f"**Documento:** {hospede['documento'] or 'Não informado'}")
-                st.write(f"**Telefone:** {hospede['telefone'] or 'Não informado'}")
+                st.write(f"**Nº Reserva:** {hospede['numero_reserva'] or 'Não informado'}")
                 st.write(f"**Check-in:** {hospede['data_checkin']}")
 
             with col2:

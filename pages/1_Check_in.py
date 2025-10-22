@@ -7,10 +7,15 @@ import streamlit as st
 from streamlit_drawable_canvas import st_canvas
 from PIL import Image
 import io
-import database as db
-import utils
+from src import database as db
+from src import utils
 
-
+# Configuração da página
+st.set_page_config(
+    page_title="🛎️ Check-in",
+    page_icon="🛎️",
+    layout="wide"
+)
 
 # Aplicar CSS customizado
 utils.aplicar_css_customizado()
@@ -26,22 +31,102 @@ utils.mostrar_header("🛎️ Check-in de Hóspedes")
 
 # === LÓGICA DA PÁGINA ===
 
-# Selecionar quarto disponível
-quartos_df = db.listar_quartos(apenas_ocupados=False)
+# Passo 1: Selecionar CATEGORIA
+st.subheader("Qual a categoria da UH?")
+
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    if st.button(
+        "🔵 Residence",
+        use_container_width=True,
+        type="primary" if st.session_state.get('categoria_checkin') == 'residence' else "secondary"
+    ):
+        st.session_state.categoria_checkin = 'residence'
+        st.rerun()
+
+with col2:
+    if st.button(
+        "🟢 Hotel",
+        use_container_width=True,
+        type="primary" if st.session_state.get('categoria_checkin') == 'hotel' else "secondary"
+    ):
+        st.session_state.categoria_checkin = 'hotel'
+        st.rerun()
+
+with col3:
+    if st.button(
+        "🟡 Day Use",
+        use_container_width=True,
+        type="primary" if st.session_state.get('categoria_checkin') == 'day_use' else "secondary"
+    ):
+        st.session_state.categoria_checkin = 'day_use'
+        st.rerun()
+
+with col4:
+    if st.button(
+        "🟠 Funcionários",
+        use_container_width=True,
+        type="primary" if st.session_state.get('categoria_checkin') == 'funcionarios' else "secondary"
+    ):
+        st.session_state.categoria_checkin = 'funcionarios'
+        st.rerun()
+
+# Verificar se categoria foi selecionada
+if 'categoria_checkin' not in st.session_state:
+    st.info("👆 Selecione a categoria para continuar")
+    st.stop()
+
+categoria = st.session_state.categoria_checkin
+
+st.divider()
+
+# Passo 2: Selecionar UH disponível da categoria
+categoria_nomes = {
+    'residence': '🔵 Residence',
+    'hotel': '🟢 Hotel',
+    'day_use': '🟡 Day Use',
+    'funcionarios': '🟠 Funcionários'
+}
+categoria_nome = categoria_nomes.get(categoria, categoria)
+st.subheader(f"Selecione a UH ({categoria_nome})")
+
+# Listar apenas quartos disponíveis da categoria selecionada
+quartos_df = db.listar_quartos(apenas_ocupados=False, categoria=categoria)
 quartos_disponiveis = quartos_df[quartos_df['status'] == 'disponivel']
 
 if quartos_disponiveis.empty:
-    st.warning("⚠️ Nenhum quarto disponível no momento!")
+    st.warning(f"⚠️ Nenhuma UH disponível em {categoria_nome} no momento!")
     st.info("Todos os quartos estão ocupados. Faça o check-out primeiro.")
+
+    # Botão para voltar e selecionar outra categoria
+    if st.button("⬅️ Voltar e selecionar outra categoria"):
+        del st.session_state.categoria_checkin
+        st.rerun()
+
     st.stop()
 
 quarto_opcoes = {
-    f"Quarto {row['numero']} ({row['tipo']})": row['id']
+    f"UH {row['numero']} ({row['tipo']})": row['id']
     for _, row in quartos_disponiveis.iterrows()
 }
 
-quarto_selecionado = st.selectbox("Selecione o quarto:", list(quarto_opcoes.keys()))
-quarto_id = quarto_opcoes[quarto_selecionado]
+col1, col2 = st.columns([3, 1])
+
+with col1:
+    quarto_selecionado = st.selectbox(
+        f"UH ({len(quartos_disponiveis)} disponível(is)):",
+        list(quarto_opcoes.keys())
+    )
+    quarto_id = quarto_opcoes[quarto_selecionado]
+
+with col2:
+    # Botão para trocar categoria
+    if st.button("🔄 Trocar Categoria"):
+        del st.session_state.categoria_checkin
+        if 'hospedes_checkin' in st.session_state:
+            st.session_state.hospedes_checkin = []
+        st.rerun()
 
 st.divider()
 
@@ -61,7 +146,7 @@ with st.form("form_hospede", clear_on_submit=True):
     with col2:
         documento = st.text_input("CPF/RG:")
 
-    telefone = st.text_input("Telefone:")
+    numero_reserva = st.text_input("Número da Reserva:")
 
     st.write("**Assinatura do Hóspede:**")
     canvas_hospede = st_canvas(
@@ -91,7 +176,7 @@ with st.form("form_hospede", clear_on_submit=True):
             st.session_state.hospedes_checkin.append({
                 'nome': nome,
                 'documento': documento,
-                'telefone': telefone,
+                'numero_reserva': numero_reserva,
                 'assinatura': assinatura_bytes
             })
             st.success(f"✅ {nome} adicionado!")
@@ -107,7 +192,7 @@ if st.session_state.hospedes_checkin:
             col1, col2 = st.columns([3, 1])
             with col1:
                 st.write(f"**Documento:** {hospede['documento'] or 'Não informado'}")
-                st.write(f"**Telefone:** {hospede['telefone'] or 'Não informado'}")
+                st.write(f"**Nº Reserva:** {hospede['numero_reserva'] or 'Não informado'}")
 
                 # Mostrar assinatura
                 try:
@@ -139,7 +224,7 @@ if st.session_state.hospedes_checkin:
                     db.adicionar_hospede(
                         nome=hospede['nome'],
                         documento=hospede['documento'],
-                        telefone=hospede['telefone'],
+                        numero_reserva=hospede['numero_reserva'],
                         quarto_id=quarto_id,
                         assinatura_bytes=hospede['assinatura']
                     )

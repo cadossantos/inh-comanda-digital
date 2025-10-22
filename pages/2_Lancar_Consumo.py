@@ -7,10 +7,15 @@ import streamlit as st
 from streamlit_drawable_canvas import st_canvas
 from PIL import Image
 import io
-import database as db
-import utils
+from src import database as db
+from src import utils
 
-
+# Configuração da página
+st.set_page_config(
+    page_title="📝 Lançar Consumo",
+    page_icon="📝",
+    layout="wide"
+)
 
 # Aplicar CSS customizado
 utils.aplicar_css_customizado()
@@ -26,19 +31,102 @@ utils.mostrar_header("📝 Lançar Consumo")
 
 # === LÓGICA DA PÁGINA ===
 
-# Selecionar quarto OCUPADO
-quartos_df = db.listar_quartos(apenas_ocupados=True)
+# Passo 1: Selecionar CATEGORIA
+st.subheader("Qual a categoria da hospedagem?")
 
-if quartos_df.empty:
-    st.warning("⚠️ Nenhum quarto ocupado no momento!")
-    st.info("Faça o check-in dos hóspedes primeiro.")
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    if st.button(
+        "🔵 Residence",
+        use_container_width=True,
+        type="primary" if st.session_state.get('categoria_selecionada') == 'residence' else "secondary"
+    ):
+        st.session_state.categoria_selecionada = 'residence'
+        st.rerun()
+
+with col2:
+    if st.button(
+        "🟢 Hotel",
+        use_container_width=True,
+        type="primary" if st.session_state.get('categoria_selecionada') == 'hotel' else "secondary"
+    ):
+        st.session_state.categoria_selecionada = 'hotel'
+        st.rerun()
+
+with col3:
+    if st.button(
+        "🟡 Day Use",
+        use_container_width=True,
+        type="primary" if st.session_state.get('categoria_selecionada') == 'day_use' else "secondary"
+    ):
+        st.session_state.categoria_selecionada = 'day_use'
+        st.rerun()
+
+with col4:
+    if st.button(
+        "🟠 Funcionários",
+        use_container_width=True,
+        type="primary" if st.session_state.get('categoria_selecionada') == 'funcionarios' else "secondary"
+    ):
+        st.session_state.categoria_selecionada = 'funcionarios'
+        st.rerun()
+
+# Verificar se categoria foi selecionada
+if 'categoria_selecionada' not in st.session_state:
+    st.info("👆 Selecione a categoria para continuar")
     st.stop()
 
-quarto_opcoes = {f"Quarto {row['numero']}": row['id']
-                 for _, row in quartos_df.iterrows()}
+categoria = st.session_state.categoria_selecionada
 
-quarto_selecionado = st.selectbox("Selecione o quarto:", list(quarto_opcoes.keys()))
-quarto_id = quarto_opcoes[quarto_selecionado]
+st.divider()
+
+# Passo 2: Selecionar UH da categoria escolhida
+categoria_nomes = {
+    'residence': '🔵 Residence',
+    'hotel': '🟢 Hotel',
+    'day_use': '🟡 Day Use',
+    'funcionarios': '🟠 Funcionários'
+}
+categoria_nome = categoria_nomes.get(categoria, categoria)
+st.subheader(f"Selecione a UH ({categoria_nome})")
+
+# Listar apenas quartos ocupados da categoria selecionada
+quartos_df = db.listar_quartos(apenas_ocupados=True, categoria=categoria)
+
+if quartos_df.empty:
+    st.warning(f"⚠️ Nenhuma UH ocupada em {categoria_nome} no momento!")
+    st.info("Faça o check-in dos hóspedes primeiro.")
+
+    # Botão para voltar e selecionar outra categoria
+    if st.button("⬅️ Voltar e selecionar outra categoria"):
+        del st.session_state.categoria_selecionada
+        st.rerun()
+
+    st.stop()
+
+# Criar opções com número e tipo da UH
+quarto_opcoes = {
+    f"UH {row['numero']} ({row['tipo']})": row['id']
+    for _, row in quartos_df.iterrows()
+}
+
+col1, col2 = st.columns([3, 1])
+
+with col1:
+    quarto_selecionado = st.selectbox(
+        f"UH ({len(quartos_df)} ocupada(s)):",
+        list(quarto_opcoes.keys())
+    )
+    quarto_id = quarto_opcoes[quarto_selecionado]
+
+with col2:
+    # Botão para trocar categoria
+    if st.button("🔄 Trocar Categoria"):
+        del st.session_state.categoria_selecionada
+        if 'carrinho' in st.session_state:
+            st.session_state.carrinho = []
+        st.rerun()
 
 # Listar hóspedes do quarto
 hospedes_df = db.listar_hospedes_quarto(quarto_id, apenas_ativos=True)

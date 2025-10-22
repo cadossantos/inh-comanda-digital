@@ -2,7 +2,7 @@ import sqlite3
 from datetime import datetime
 import pandas as pd
 
-DB_NAME = "pousada.db"
+DB_NAME = "database/pousada.db"
 
 def init_db():
     """Inicializa o banco de dados com as tabelas necessárias"""
@@ -15,6 +15,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             numero TEXT UNIQUE NOT NULL,
             tipo TEXT DEFAULT 'standard',
+            categoria TEXT DEFAULT 'hotel',
             status TEXT DEFAULT 'disponivel'
         )
     ''')
@@ -25,7 +26,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT NOT NULL,
             documento TEXT,
-            telefone TEXT,
+            numero_reserva TEXT,
             quarto_id INTEGER NOT NULL,
             data_checkin TEXT NOT NULL,
             data_checkout TEXT,
@@ -82,12 +83,13 @@ def init_db():
 
 
 # ===== FUNÇÕES PARA QUARTOS =====
-def adicionar_quarto(numero, hospede="", tipo="standard"):
+def adicionar_quarto(numero, tipo="standard", categoria="hotel"):
     """Adiciona um novo quarto"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO quartos (numero, tipo) VALUES (?, ?)", (numero, tipo))
+        cursor.execute("INSERT INTO quartos (numero, tipo, categoria) VALUES (?, ?, ?)",
+                      (numero, tipo, categoria))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
@@ -95,12 +97,27 @@ def adicionar_quarto(numero, hospede="", tipo="standard"):
     finally:
         conn.close()
 
-def listar_quartos(apenas_ocupados=True):
+def listar_quartos(apenas_ocupados=True, categoria=None):
+    """Lista quartos com filtro opcional por categoria"""
     conn = sqlite3.connect(DB_NAME)
-    if apenas_ocupados:
+
+    if apenas_ocupados and categoria:
+        df = pd.read_sql_query(
+            "SELECT * FROM quartos WHERE status='ocupado' AND categoria=? ORDER BY numero",
+            conn,
+            params=(categoria,)
+        )
+    elif apenas_ocupados:
         df = pd.read_sql_query("SELECT * FROM quartos WHERE status='ocupado' ORDER BY numero", conn)
+    elif categoria:
+        df = pd.read_sql_query(
+            "SELECT * FROM quartos WHERE categoria=? ORDER BY numero",
+            conn,
+            params=(categoria,)
+        )
     else:
         df = pd.read_sql_query("SELECT * FROM quartos ORDER BY numero", conn)
+
     conn.close()
     return df
 
@@ -114,7 +131,7 @@ def atualizar_status_quarto(quarto_id, novo_status):
 
 
 # ===== FUNÇÕES PARA HÓSPEDES =====
-def adicionar_hospede(nome, documento, telefone, quarto_id, assinatura_bytes=None):
+def adicionar_hospede(nome, documento, numero_reserva, quarto_id, assinatura_bytes=None):
     """Adiciona um novo hóspede (check-in)"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -122,9 +139,9 @@ def adicionar_hospede(nome, documento, telefone, quarto_id, assinatura_bytes=Non
     data_checkin = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     cursor.execute('''
-        INSERT INTO hospedes (nome, documento, telefone, quarto_id, data_checkin, assinatura_cadastro, ativo)
+        INSERT INTO hospedes (nome, documento, numero_reserva, quarto_id, data_checkin, assinatura_cadastro, ativo)
         VALUES (?, ?, ?, ?, ?, ?, 1)
-    ''', (nome, documento, telefone, quarto_id, data_checkin, assinatura_bytes))
+    ''', (nome, documento, numero_reserva, quarto_id, data_checkin, assinatura_bytes))
 
     hospede_id = cursor.lastrowid
     conn.commit()

@@ -4,12 +4,20 @@ Gerenciamento de quartos, produtos e usuários
 """
 
 import streamlit as st
-import database as db
-import utils
+from src import database as db
+from src import utils
 
 
 
 # Aplicar CSS customizado
+# Configuração da página
+st.set_page_config(
+    page_title="⚙️ Administração",
+    page_icon="⚙️",
+    layout="wide"
+)
+
+
 utils.aplicar_css_customizado()
 
 # Inicializar banco
@@ -26,29 +34,120 @@ utils.mostrar_header("⚙️ Administração")
 tab1, tab2, tab3 = st.tabs(["Quartos", "Produtos", "Usuários"])
 
 with tab1:
-    st.subheader("Cadastrar Quarto")
+    st.subheader("Cadastrar UH (Unidade Habitacional)")
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
-        numero = st.text_input("Número do quarto:")
+        numero = st.text_input("Número da UH:")
     with col2:
-        tipo = st.selectbox("Tipo:", ["standard", "luxo", "suite"])
+        categoria_uh = st.selectbox("Categoria:", [
+            ("residence", "🔵 Residence (Aparthotel)"),
+            ("hotel", "🟢 Hotel"),
+            ("day_use", "🟡 Day Use"),
+            ("funcionarios", "🟠 Funcionários")
+        ], format_func=lambda x: x[1])
+    with col3:
+        # Tipos dinâmicos baseados na categoria
+        if categoria_uh[0] == 'residence':
+            tipos_opcoes = ["DUPLO", "QUADRUPLO", "DUPLO COM HIDRO"]
+        elif categoria_uh[0] == 'hotel':
+            tipos_opcoes = ["LUXO TPL", "LUXO DBL", "STANDARD TPL", "STANDARD DBL"]
+        elif categoria_uh[0] == 'day_use':
+            tipos_opcoes = ["DAY USE"]
+        else:  # funcionarios
+            tipos_opcoes = ["FUNCIONARIO", "SALA REUNIAO"]
 
-    if st.button("Adicionar Quarto"):
+        tipo = st.selectbox("Tipo:", tipos_opcoes)
+
+    if st.button("Adicionar UH"):
         if numero:
-            if db.adicionar_quarto(numero, "", tipo):
-                st.success("Quarto adicionado!")
+            if db.adicionar_quarto(numero, tipo, categoria_uh[0]):
+                st.success(f"✅ UH {numero} ({tipo}) adicionada ao {categoria_uh[1]}!")
                 st.rerun()
             else:
-                st.error("Quarto já existe!")
+                st.error("UH já existe!")
         else:
-            st.error("Número do quarto é obrigatório!")
+            st.error("Número da UH é obrigatório!")
 
     st.divider()
 
-    st.subheader("Quartos cadastrados:")
-    quartos_df = db.listar_quartos(apenas_ocupados=False)
-    st.dataframe(quartos_df, use_container_width=True)
+    st.subheader("UHs cadastradas:")
+
+    # Filtro por categoria
+    col_filtro1, col_filtro2 = st.columns([1, 3])
+    with col_filtro1:
+        filtro_categoria = st.selectbox(
+            "Filtrar por:",
+            [
+                ("todos", "Todas"),
+                ("residence", "🔵 Residence"),
+                ("hotel", "🟢 Hotel"),
+                ("day_use", "🟡 Day Use"),
+                ("funcionarios", "🟠 Funcionários")
+            ],
+            format_func=lambda x: x[1]
+        )
+
+    if filtro_categoria[0] == "todos":
+        quartos_df = db.listar_quartos(apenas_ocupados=False)
+    else:
+        quartos_df = db.listar_quartos(apenas_ocupados=False, categoria=filtro_categoria[0])
+
+    # Traduzir categoria e status
+    if not quartos_df.empty:
+        categoria_map = {
+            'residence': '🔵 Residence',
+            'hotel': '🟢 Hotel',
+            'day_use': '🟡 Day Use',
+            'funcionarios': '🟠 Funcionários'
+        }
+        status_map = {
+            'disponivel': '✅ Disponível',
+            'ocupado': '🔴 Ocupado'
+        }
+
+        quartos_df['categoria_nome'] = quartos_df['categoria'].map(categoria_map)
+        quartos_df['status_nome'] = quartos_df['status'].map(status_map)
+
+        st.dataframe(
+            quartos_df[['numero', 'tipo', 'categoria_nome', 'status_nome']],
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "numero": "UH",
+                "tipo": "Tipo",
+                "categoria_nome": "Categoria",
+                "status_nome": "Status"
+            }
+        )
+
+        # Estatísticas
+        col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+        with col_stat1:
+            total_residence = len(quartos_df[quartos_df['categoria'] == 'residence'])
+            st.metric("🔵 Residence", f"{total_residence} UHs")
+        with col_stat2:
+            total_hotel = len(quartos_df[quartos_df['categoria'] == 'hotel'])
+            st.metric("🟢 Hotel", f"{total_hotel} UHs")
+        with col_stat3:
+            total_day_use = len(quartos_df[quartos_df['categoria'] == 'day_use'])
+            st.metric("🟡 Day Use", f"{total_day_use} UHs")
+        with col_stat4:
+            total_funcionarios = len(quartos_df[quartos_df['categoria'] == 'funcionarios'])
+            st.metric("🟠 Funcionários", f"{total_funcionarios} UHs")
+
+        st.divider()
+
+        # Estatística de ocupação
+        col_ocup1, col_ocup2 = st.columns(2)
+        with col_ocup1:
+            total_ocupadas = len(quartos_df[quartos_df['status'] == 'ocupado'])
+            st.metric("🔴 Ocupadas", f"{total_ocupadas} UHs")
+        with col_ocup2:
+            total_disponiveis = len(quartos_df[quartos_df['status'] == 'disponivel'])
+            st.metric("✅ Disponíveis", f"{total_disponiveis} UHs")
+    else:
+        st.info("Nenhuma UH cadastrada ainda.")
 
     st.info("💡 **Dica:** Use o Check-in para adicionar hóspedes e coletar assinaturas.")
 

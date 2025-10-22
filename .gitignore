@@ -1,10 +1,27 @@
-# Python-generated files
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[oc]
+*.pyd
 build/
 dist/
 wheels/
 *.egg-info
 
-# Virtual environments
-.venv
+# Virtual environment
+.venv/
+
+# Package manager lock file
+uv.lock
+
+# Python version file
+.python-version
+
+# Database files
+database/pousada.db
+database/backups/
+
+# Documentation
+# docs/
+
+# Streamlit configuration
+.streamlit/

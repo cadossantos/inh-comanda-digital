@@ -4,7 +4,7 @@ Funções de autenticação, controle de acesso e helpers
 """
 
 import streamlit as st
-import database as db
+from . import database as db
 
 # ===== CONTROLE DE ACESSO =====
 

@@ -4,7 +4,7 @@ Script para testar a validação de assinaturas
 import sqlite3
 import database as db
 
-DB_NAME = "pousada.db"
+DB_NAME = "database/pousada.db"
 
 def listar_quartos_com_assinatura():
     """Lista quartos que possuem assinatura cadastrada"""
