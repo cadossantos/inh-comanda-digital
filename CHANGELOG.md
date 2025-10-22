@@ -16,6 +16,8 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 - Corrigido erro `AttributeError: module 'database' has no attribute 'validar_garcom'` causado por imports incorretos após a movimentação dos arquivos para a pasta `src/`.
+- **Corrigido erro de deployment no Streamlit Cloud**: Adicionada coluna `perfil` na criação inicial da tabela `garcons` em `init_db()` para evitar erro `sqlite3.OperationalError: no such column: perfil`.
+- **Adicionada criação automática do usuário Admin**: O `init_db()` agora cria automaticamente o usuário Admin (código: 1234, perfil: admin) se ele não existir, garantindo acesso inicial ao sistema.
 
 ## [0.6.1] - 2025-10-21
 

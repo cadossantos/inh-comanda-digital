@@ -52,7 +52,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS garcons (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT NOT NULL,
-            codigo TEXT UNIQUE NOT NULL
+            codigo TEXT UNIQUE NOT NULL,
+            perfil TEXT DEFAULT 'garcom'
         )
     ''')
     
@@ -76,7 +77,16 @@ def init_db():
             FOREIGN KEY (garcom_id) REFERENCES garcons (id)
         )
     ''')
-    
+
+    # Criar usuário Admin padrão se não existir
+    cursor.execute("SELECT COUNT(*) FROM garcons WHERE codigo = ?", ("1234",))
+    if cursor.fetchone()[0] == 0:
+        cursor.execute(
+            "INSERT INTO garcons (nome, codigo, perfil) VALUES (?, ?, ?)",
+            ("Admin", "1234", "admin")
+        )
+        print("Usuário Admin criado com código 1234")
+
     conn.commit()
     conn.close()
     print("Banco de dados inicializado!")

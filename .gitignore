@@ -21,7 +21,7 @@ database/pousada.db
 database/backups/
 
 # Documentation
-# docs/
+docs/apresentacao.md
 
 # Streamlit configuration
 .streamlit/
