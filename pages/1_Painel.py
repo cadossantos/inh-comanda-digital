@@ -37,6 +37,8 @@ utils.mostrar_header("Painel de Consumos")
 col_filtro1, col_filtro2, col_filtro3, col_filtro4 = st.columns([2, 2, 2, 4])
 
 with col_filtro1:
+    st.caption("")
+    st.caption("")
     excluir_funcionarios = st.toggle(
         "Excluir Funcionários",
         value=False,
@@ -91,30 +93,73 @@ else:  # Faturados
 
 st.divider()
 
-# === RESUMO GERAL ===
-st.subheader("📊 Resumo Geral")
+# === TAXA DE OCUPAÇÃO ===
+st.subheader("Taxa de Ocupação")
 
-col1, col2, col3, col4 = st.columns(4)
-
-# Quartos ocupados
-quartos_ocupados = len(db.listar_quartos(apenas_ocupados=True, excluir_funcionarios=excluir_funcionarios))
-
-# Total de quartos: se excluir funcionários, não contar quartos da categoria 'funcionarios'
+# Calcular taxa geral
 if excluir_funcionarios:
-    # Buscar todos os quartos exceto os da categoria funcionarios
     todos_quartos = db.listar_quartos(apenas_ocupados=False)
     quartos_total = len(todos_quartos[todos_quartos['categoria'] != 'funcionarios'])
+    quartos_ocupados = len(db.listar_quartos(apenas_ocupados=True, excluir_funcionarios=excluir_funcionarios))
 else:
     quartos_total = len(db.listar_quartos(apenas_ocupados=False))
+    quartos_ocupados = len(db.listar_quartos(apenas_ocupados=True))
 
-with col1:
-    st.metric("Quartos Ocupados", f"{quartos_ocupados}/{quartos_total}")
+taxa_ocupacao = (quartos_ocupados / quartos_total * 100) if quartos_total > 0 else 0
 
-# Hóspedes ativos
-hospedes_ativos = len(db.listar_todos_hospedes_ativos(excluir_funcionarios=excluir_funcionarios))
+# Visualização da taxa geral
+col_taxa1, col_taxa2 = st.columns([1, 3])
 
-with col2:
-    st.metric("Hóspedes Ativos", hospedes_ativos)
+with col_taxa1:
+    st.metric(
+        "Taxa Geral",
+        f"{taxa_ocupacao:.1f}%",
+        help=f"{quartos_ocupados} de {quartos_total} quartos ocupados"
+    )
+    st.caption(f"{quartos_ocupados}/{quartos_total} quartos")
+
+with col_taxa2:
+    # Progress bar visual
+    st.caption("Ocupação Visual")
+    st.progress(taxa_ocupacao / 100)
+
+    # Breakdown por categoria
+    st.caption("**Por Categoria:**")
+    categorias = ['hotel', 'residence', 'day_use']
+    if not excluir_funcionarios:
+        categorias.append('funcionarios')
+
+    cols_cat = st.columns(len(categorias))
+
+    for idx, categoria in enumerate(categorias):
+        total_cat = len(db.listar_quartos(apenas_ocupados=False, categoria=categoria))
+        ocupados_cat = len(db.listar_quartos(apenas_ocupados=True, categoria=categoria, excluir_funcionarios=excluir_funcionarios))
+        taxa_cat = (ocupados_cat / total_cat * 100) if total_cat > 0 else 0
+
+        with cols_cat[idx]:
+            emoji_map = {
+                'hotel': '🟢',
+                'residence': '🔵',
+                'day_use': '🟡',
+                'funcionarios': '🟠'
+            }
+            nome_map = {
+                'hotel': 'Hotel',
+                'residence': 'Residence',
+                'day_use': 'Day Use',
+                'funcionarios': 'Funcionários'
+            }
+            st.metric(
+                f"{emoji_map.get(categoria, '')} {nome_map.get(categoria, categoria)}",
+                f"{taxa_cat:.0f}%",
+                delta=None,
+                help=f"{ocupados_cat}/{total_cat}"
+            )
+
+st.divider()
+
+# === RESUMO GERAL ===
+st.subheader("Resumo Geral")
 
 # Consumos - aplicar filtros de período e status
 consumos_filtrados = db.listar_consumos(
@@ -123,17 +168,51 @@ consumos_filtrados = db.listar_consumos(
     data_inicial=data_inicial_str,
     data_final=data_final_str
 )
-total_consumos = consumos_filtrados['valor_total'].sum() if not consumos_filtrados.empty else 0
 
-# Separar pendentes e faturados para métricas específicas
+# Cálculos
+quantidade_consumos = len(consumos_filtrados)
+total_consumos = consumos_filtrados['valor_total'].sum() if not consumos_filtrados.empty else 0
+ticket_medio = (total_consumos / quantidade_consumos) if quantidade_consumos > 0 else 0
+
+# Hóspedes ativos
+hospedes_ativos = len(db.listar_todos_hospedes_ativos(excluir_funcionarios=excluir_funcionarios))
+
+# Separar pendentes e faturados para uso nas tabs
 consumos_pendentes = consumos_filtrados[consumos_filtrados['status'] == 'pendente'] if not consumos_filtrados.empty else consumos_filtrados
-total_pendente = consumos_pendentes['valor_total'].sum() if not consumos_pendentes.empty else 0
+
+# Layout: 4 colunas contando a história completa
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.metric(
+        "Consumos (período)",
+        quantidade_consumos,
+        help="Volume de operação - total de pedidos realizados"
+    )
+
+with col2:
+    st.metric(
+        "Hóspedes Ativos",
+        hospedes_ativos,
+        help="Base de consumo potencial - hóspedes no hotel"
+    )
 
 with col3:
-    st.metric("Consumos (período)", len(consumos_filtrados))
+    st.metric(
+        "Ticket Médio",
+        f"R$ {ticket_medio:.2f}",
+        help="Eficiência de venda - valor médio por pedido"
+    )
 
 with col4:
-    st.metric("Total (período)", f"R$ {total_consumos:.2f}")
+    # Destaque visual no valor total
+    st.markdown(f"""
+        <div style='background-color: #f0f2f6; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #1f77b4;'>
+            <p style='margin: 0; font-size: 0.875rem; color: #31333f;'>Total (período)</p>
+            <p style='margin: 0; font-size: 2rem; font-weight: bold; color: #1f77b4;'>R$ {total_consumos:,.2f}</p>
+            <p style='margin: 0; font-size: 0.75rem; color: #808495;'>Resultado financeiro do período</p>
+        </div>
+    """, unsafe_allow_html=True)
 
 st.divider()
 
