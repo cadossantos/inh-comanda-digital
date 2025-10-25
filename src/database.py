@@ -35,7 +35,15 @@ def init_db():
             FOREIGN KEY (quarto_id) REFERENCES quartos (id)
         )
     ''')
-    
+
+    # Adicionar coluna is_funcionario se não existir (migração)
+    try:
+        cursor.execute("ALTER TABLE hospedes ADD COLUMN is_funcionario INTEGER DEFAULT 0")
+        print("Coluna 'is_funcionario' adicionada à tabela hospedes")
+    except sqlite3.OperationalError:
+        # Coluna já existe, ignorar
+        pass
+
     # Tabela de produtos
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS produtos (
@@ -107,27 +115,39 @@ def adicionar_quarto(numero, tipo="standard", categoria="hotel"):
     finally:
         conn.close()
 
-def listar_quartos(apenas_ocupados=True, categoria=None):
-    """Lista quartos com filtro opcional por categoria"""
+def listar_quartos(apenas_ocupados=True, categoria=None, excluir_funcionarios=False):
+    """Lista quartos com filtro opcional por categoria
+
+    Args:
+        apenas_ocupados: Se True, lista apenas quartos ocupados
+        categoria: Filtro por categoria do quarto
+        excluir_funcionarios: Se True, exclui quartos ocupados apenas por funcionários
+    """
     conn = sqlite3.connect(DB_NAME)
 
-    if apenas_ocupados and categoria:
-        df = pd.read_sql_query(
-            "SELECT * FROM quartos WHERE status='ocupado' AND categoria=? ORDER BY numero",
-            conn,
-            params=(categoria,)
-        )
-    elif apenas_ocupados:
-        df = pd.read_sql_query("SELECT * FROM quartos WHERE status='ocupado' ORDER BY numero", conn)
-    elif categoria:
-        df = pd.read_sql_query(
-            "SELECT * FROM quartos WHERE categoria=? ORDER BY numero",
-            conn,
-            params=(categoria,)
-        )
-    else:
-        df = pd.read_sql_query("SELECT * FROM quartos ORDER BY numero", conn)
+    # Base da query
+    query = "SELECT DISTINCT q.* FROM quartos q"
+    where_clauses = []
+    params = []
 
+    # Se precisamos excluir funcionários, fazemos JOIN com hospedes
+    if excluir_funcionarios and apenas_ocupados:
+        query += " LEFT JOIN hospedes h ON q.id = h.quarto_id AND h.ativo = 1"
+        where_clauses.append("q.status = 'ocupado'")
+        where_clauses.append("(h.is_funcionario IS NULL OR h.is_funcionario = 0)")
+    elif apenas_ocupados:
+        where_clauses.append("q.status = 'ocupado'")
+
+    if categoria:
+        where_clauses.append("q.categoria = ?")
+        params.append(categoria)
+
+    if where_clauses:
+        query += " WHERE " + " AND ".join(where_clauses)
+
+    query += " ORDER BY q.numero"
+
+    df = pd.read_sql_query(query, conn, params=params if params else None)
     conn.close()
     return df
 
@@ -141,17 +161,26 @@ def atualizar_status_quarto(quarto_id, novo_status):
 
 
 # ===== FUNÇÕES PARA HÓSPEDES =====
-def adicionar_hospede(nome, documento, numero_reserva, quarto_id, assinatura_bytes=None):
-    """Adiciona um novo hóspede (check-in)"""
+def adicionar_hospede(nome, documento, numero_reserva, quarto_id, assinatura_bytes=None, is_funcionario=False):
+    """Adiciona um novo hóspede (check-in)
+
+    Args:
+        nome: Nome do hóspede
+        documento: Documento de identificação
+        numero_reserva: Número da reserva
+        quarto_id: ID do quarto
+        assinatura_bytes: Assinatura em bytes
+        is_funcionario: Se True, marca o hóspede como funcionário
+    """
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
     data_checkin = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     cursor.execute('''
-        INSERT INTO hospedes (nome, documento, numero_reserva, quarto_id, data_checkin, assinatura_cadastro, ativo)
-        VALUES (?, ?, ?, ?, ?, ?, 1)
-    ''', (nome, documento, numero_reserva, quarto_id, data_checkin, assinatura_bytes))
+        INSERT INTO hospedes (nome, documento, numero_reserva, quarto_id, data_checkin, assinatura_cadastro, ativo, is_funcionario)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+    ''', (nome, documento, numero_reserva, quarto_id, data_checkin, assinatura_bytes, 1 if is_funcionario else 0))
 
     hospede_id = cursor.lastrowid
     conn.commit()
@@ -179,8 +208,12 @@ def listar_hospedes_quarto(quarto_id, apenas_ativos=True):
     conn.close()
     return df
 
-def listar_todos_hospedes_ativos():
-    """Lista todos os hóspedes ativos (check-in feito, sem check-out)"""
+def listar_todos_hospedes_ativos(excluir_funcionarios=False):
+    """Lista todos os hóspedes ativos (check-in feito, sem check-out)
+
+    Args:
+        excluir_funcionarios: Se True, exclui hóspedes marcados como funcionários
+    """
     conn = sqlite3.connect(DB_NAME)
 
     query = '''
@@ -188,8 +221,12 @@ def listar_todos_hospedes_ativos():
         FROM hospedes h
         JOIN quartos q ON h.quarto_id = q.id
         WHERE h.ativo = 1
-        ORDER BY q.numero, h.nome
     '''
+
+    if excluir_funcionarios:
+        query += " AND (h.is_funcionario IS NULL OR h.is_funcionario = 0)"
+
+    query += " ORDER BY q.numero, h.nome"
 
     df = pd.read_sql_query(query, conn)
     conn.close()
@@ -304,8 +341,17 @@ def adicionar_consumo(quarto_id, hospede_id, produto_id, quantidade, valor_unita
     conn.commit()
     conn.close()
 
-def listar_consumos(quarto_id=None, hospede_id=None, status='pendente'):
-    """Lista consumos com filtros opcionais"""
+def listar_consumos(quarto_id=None, hospede_id=None, status='pendente', excluir_funcionarios=False, data_inicial=None, data_final=None):
+    """Lista consumos com filtros opcionais
+
+    Args:
+        quarto_id: ID do quarto para filtrar
+        hospede_id: ID do hóspede para filtrar
+        status: Status do consumo (pendente, faturado, etc) - None para todos
+        excluir_funcionarios: Se True, exclui consumos de hóspedes marcados como funcionários
+        data_inicial: Data inicial para filtro (formato YYYY-MM-DD)
+        data_final: Data final para filtro (formato YYYY-MM-DD)
+    """
     conn = sqlite3.connect(DB_NAME)
 
     query = '''
@@ -338,6 +384,14 @@ def listar_consumos(quarto_id=None, hospede_id=None, status='pendente'):
     if status:
         query += " AND c.status = ?"
         params.append(status)
+    if excluir_funcionarios:
+        query += " AND (h.is_funcionario IS NULL OR h.is_funcionario = 0)"
+    if data_inicial:
+        query += " AND DATE(c.data_hora) >= ?"
+        params.append(data_inicial)
+    if data_final:
+        query += " AND DATE(c.data_hora) <= ?"
+        params.append(data_final)
 
     query += " ORDER BY c.data_hora DESC"
 

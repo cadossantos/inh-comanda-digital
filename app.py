@@ -9,14 +9,16 @@ from src import utils
 
 # Configuração da página
 st.set_page_config(
-    page_title="Ilheus North Hotel - Sistema de Gestão",
-    page_icon="🏖️",
+    page_title="Login - INH",
+    page_icon="🔐",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Aplicar CSS customizado
+# Aplicar CSS customizado e logo
 utils.aplicar_css_customizado()
+utils.adicionar_logo_sidebar()
+
 
 # Inicializar banco de dados
 db.init_db()
@@ -28,10 +30,8 @@ utils.inicializar_sessao()
 
 # Logo e header
 st.markdown("""
-    <div style='text-align: center; padding: 2rem 0;'>
-        <h1 style='color: #1f77b4; font-size: 3em;'>🏖️</h1>
-        <h1>Ilheus North Hotel</h1>
-        <p style='font-size: 1.2em; color: #666;'>Sistema de Gestão Hoteleira</p>
+    <div style='text-align: center; padding: 1rem 0;'>
+        <h1>Sistema de Comanda Digital</h1>
     </div>
 """, unsafe_allow_html=True)
 
@@ -54,7 +54,7 @@ if not st.session_state.logged_in:
                 help="Entre em contato com a administração se não tiver um código"
             )
 
-            submitted = st.form_submit_button("🚪 Entrar", use_container_width=True)
+            submitted = st.form_submit_button("Entrar", use_container_width=True)
 
             if submitted:
                 if codigo:
@@ -71,7 +71,7 @@ if not st.session_state.logged_in:
         st.divider()
 
         # Informações adicionais
-        with st.expander("ℹ️ Informações do Sistema"):
+        with st.expander("Informações do Sistema"):
             st.markdown("""
             **Sistema de Gestão Hoteleira - INH**
 
@@ -92,23 +92,24 @@ if not st.session_state.logged_in:
             """)
 
 else:
-    # ===== TELA HOME (PÓS-LOGIN) =====
+    # ===== REDIRECIONAMENTO AUTOMÁTICO =====
+    # Redireciona usuário para sua página principal baseado no perfil
 
-    # Obter informações do usuário
     info = utils.obter_info_usuario()
-
-    # Boas-vindas
-    st.success(f"👋 Bem-vindo, **{info['nome']}**!")
-    st.caption(f"Perfil: {info['perfil_nome']}")
-
-    st.divider()
-
-    # Cards de acesso rápido
-    st.subheader("🚀 Acesso Rápido")
-
-    # Definir cards baseado no perfil
     perfil = info['perfil']
 
+    # Mapeamento de perfis para páginas
+    REDIRECIONAMENTO_PERFIL = {
+        'garcom': 'pages/2_Lancar_Consumo.py',
+        'recepcao': 'pages/1_Painel.py',
+        'admin': 'pages/1_Painel.py'
+    }
+
+    # Redirecionar para a página apropriada
+    if perfil in REDIRECIONAMENTO_PERFIL:
+        st.switch_page(REDIRECIONAMENTO_PERFIL[perfil])
+
+    # Caso não haja redirecionamento (fallback)
     if perfil == 'garcom':
         # Garçom só vê lançar consumo
         col1, col2, col3 = st.columns(3)

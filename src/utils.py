@@ -4,6 +4,8 @@ Funções de autenticação, controle de acesso e helpers
 """
 
 import streamlit as st
+import base64
+from pathlib import Path
 from . import database as db
 
 # ===== CONTROLE DE ACESSO =====
@@ -154,7 +156,7 @@ def mostrar_header(titulo, mostrar_logout=True):
 
     with col2:
         if mostrar_logout:
-            if st.button("🚪 Sair", use_container_width=True):
+            if st.button("Sair", use_container_width=True):
                 fazer_logout()
 
     # Mostrar info do usuário
@@ -176,10 +178,48 @@ def aplicar_css_customizado():
         /* Header customizado */
         .css-1v0mbdj {
             padding-top: 1rem;
+            pandding-button: 2rem;
         }
 
-        /* Branding INH */
-        [data-testid="stSidebarNav"];
+        /* Reduzir largura da sidebar em 25% (padrão ~21rem, novo ~16rem) */
+        section[data-testid="stSidebar"] {
+            width: 20rem !important;
+            min-width: 16rem !important;
+        }
+
+        section[data-testid="stSidebar"] > div {
+            width: 19rem !important;
+        }
+
+        /* Ajustar conteúdo principal para compensar */
+        .main .block-container {
+            max-width: calc(100% - 16rem) !important;
         }
         </style>
     """, unsafe_allow_html=True)
+
+
+def adicionar_logo_sidebar():
+    """Adiciona logo na sidebar acima do menu de navegação"""
+    logo_path = Path("assets/logo.png")
+    if logo_path.exists():
+        with open(logo_path, "rb") as f:
+            logo_base64 = base64.b64encode(f.read()).decode()
+
+        st.markdown(f"""
+            <style>
+            [data-testid="stSidebarNav"] {{
+                background-image: url('data:image/png;base64,{logo_base64}');
+                background-repeat: no-repeat;
+                background-position: center 20px;
+                background-size: 80%;
+                padding-top: 180px;
+            }}
+            [data-testid="stSidebarNav"]::before {{
+                content: "";
+                display: block;
+                margin-left: auto;
+                margin-right: auto;
+            }}
+            </style>
+            """, unsafe_allow_html=True)

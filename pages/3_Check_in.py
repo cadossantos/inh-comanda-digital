@@ -17,8 +17,10 @@ st.set_page_config(
     layout="wide"
 )
 
-# Aplicar CSS customizado
+# Aplicar CSS customizado e logo
 utils.aplicar_css_customizado()
+utils.adicionar_logo_sidebar()
+
 
 # Inicializar banco
 db.init_db()
@@ -111,22 +113,22 @@ quarto_opcoes = {
     for _, row in quartos_disponiveis.iterrows()
 }
 
-col1, col2 = st.columns([3, 1])
+# col1, col2 = st.columns([3, 1])
 
-with col1:
-    quarto_selecionado = st.selectbox(
-        f"UH ({len(quartos_disponiveis)} disponível(is)):",
-        list(quarto_opcoes.keys())
-    )
-    quarto_id = quarto_opcoes[quarto_selecionado]
+# with col1:
+quarto_selecionado = st.selectbox(
+    f"UH ({len(quartos_disponiveis)} disponível(is)):",
+    list(quarto_opcoes.keys())
+)
+quarto_id = quarto_opcoes[quarto_selecionado]
 
-with col2:
-    # Botão para trocar categoria
-    if st.button("🔄 Trocar Categoria"):
-        del st.session_state.categoria_checkin
-        if 'hospedes_checkin' in st.session_state:
-            st.session_state.hospedes_checkin = []
-        st.rerun()
+# with col2:
+#     # Botão para trocar categoria
+#     if st.button("🔄 Trocar Categoria"):
+#         del st.session_state.categoria_checkin
+#         if 'hospedes_checkin' in st.session_state:
+#             st.session_state.hospedes_checkin = []
+#         st.rerun()
 
 st.divider()
 
@@ -220,13 +222,17 @@ if st.session_state.hospedes_checkin:
         if st.button("✅ CONFIRMAR CHECK-IN", type="primary", use_container_width=True):
             try:
                 # Cadastrar todos os hóspedes
+                # Marca como funcionário se a categoria for 'funcionarios'
+                is_funcionario = (categoria == 'funcionarios')
+
                 for hospede in st.session_state.hospedes_checkin:
                     db.adicionar_hospede(
                         nome=hospede['nome'],
                         documento=hospede['documento'],
                         numero_reserva=hospede['numero_reserva'],
                         quarto_id=quarto_id,
-                        assinatura_bytes=hospede['assinatura']
+                        assinatura_bytes=hospede['assinatura'],
+                        is_funcionario=is_funcionario
                     )
 
                 # Marcar quarto como ocupado

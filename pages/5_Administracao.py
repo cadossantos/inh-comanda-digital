@@ -9,7 +9,6 @@ from src import utils
 
 
 
-# Aplicar CSS customizado
 # Configuração da página
 st.set_page_config(
     page_title="⚙️ Administração",
@@ -17,8 +16,10 @@ st.set_page_config(
     layout="wide"
 )
 
-
+# Aplicar CSS customizado e logo
 utils.aplicar_css_customizado()
+utils.adicionar_logo_sidebar()
+
 
 # Inicializar banco
 db.init_db()

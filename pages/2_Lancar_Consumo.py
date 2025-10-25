@@ -17,8 +17,10 @@ st.set_page_config(
     layout="wide"
 )
 
-# Aplicar CSS customizado
+# Aplicar CSS customizado e logo
 utils.aplicar_css_customizado()
+utils.adicionar_logo_sidebar()
+
 
 # Inicializar banco
 db.init_db()
