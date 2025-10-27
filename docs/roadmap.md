@@ -312,4 +312,4 @@
 **Próxima Revisão:** Mensal
 
 
-mudar layout de seleção de categoria e quarto para duas colunas, coluna um com as categorias uma abaixo da outra, coluna 2 com a seleção do quarto.
+pensar estratégia e desenvolver automação para adicionar consumos com pyautogui no sistema que gera NF-e.

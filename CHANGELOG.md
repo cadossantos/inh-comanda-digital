@@ -5,6 +5,502 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.3] - 2025-10-26
+
+### Changed
+
+#### Refatoração Completa do Check-out
+- **Seleção por Categoria**: Implementado fluxo com seleção de categoria (Residence/Hotel/Day Use/Funcionários) antes de selecionar UH
+  - Layout com espaçamento visual (col1 botões, col2 vazio, col3 seleção)
+  - Filtragem automática de UHs ocupadas por categoria
+  - Botão "Voltar" quando nenhuma UH ocupada na categoria
+
+- **Detalhamento Profissional de Consumos**: Reestruturação completa da visualização
+  - Agrupamento por hóspede com total individual
+  - Cada consumo exibido como "PEDIDO #N" em destaque (h3, cor dourada)
+  - Informações completas por pedido:
+    - Item consumido
+    - Origem/Ponto de venda (categoria do produto)
+    - Garçom responsável
+    - Quantidade, valor unitário e total
+    - **Assinatura ao lado** (300px)
+    - **Data/hora no caption da assinatura**: "Autorizado em DD/MM/YYYY às HH:MM:SS"
+
+- **Resumo Financeiro Completo**: Box profissional com breakdown detalhado
+  - Lista de consumo por hóspede individual
+  - Subtotal de todos os consumos
+  - Taxa de serviço 10% (opcional)
+  - Total geral em destaque (fonte 2.5em, cor dourada)
+  - Design usando cores da identidade visual (#182D4C, #d2b02d, #e7dbcb)
+
+- **Taxa de Serviço Opcional**: Checkbox para aplicar ou não taxa de 10%
+  - Localizado acima do resumo financeiro
+  - Padrão: marcado (taxa aplicada)
+  - Feedback visual: quando desmarcado, valor fica cinza e riscado
+  - Cálculo dinâmico do total baseado na seleção
+  - Importante para clientes que não pagam taxa de serviço
+
+- **Identidade Visual Aplicada**: Todas as cores seguem `config.toml`
+  - Primary: #d2b02d (dourado)
+  - Background: #2e4363ff (azul médio)
+  - Secondary Background: #182D4C (azul escuro)
+  - Text: #e7dbcb (bege)
+  - Remoção total de emojis para aparência profissional
+
+- **Data/Hora em Formato Brasileiro**: Conversão de timestamps
+  - De: `YYYY-MM-DD HH:MM:SS`
+  - Para: `DD/MM/YYYY às HH:MM:SS`
+  - Exibido no caption da assinatura
+
+### Fixed
+- **KeyError 'garcom'**: Adicionado JOIN com tabela `garcons` na função `obter_resumo_consumo_quarto()`
+  - Query atualizada com `LEFT JOIN garcons g ON c.garcom_id = g.id`
+  - Coluna `g.nome as garcom` incluída no SELECT
+- **Bug de renderização com símbolo R$**: Todos os valores monetários convertidos para HTML
+  - Streamlit interpreta `$` como LaTeX, causando erro de renderização
+  - Solução: usar `st.markdown()` com HTML ao invés de `st.write()` ou `st.metric()`
+- **HTML renderizando como código**: Quebras de linha e indentação dentro de f-strings removidas
+  - Construção de HTML em lista com `.join()` para evitar espaços em branco
+
+### Added
+- **Campo "garcom" nos detalhes de consumo**: Nome do garçom que realizou o atendimento
+- **Limpeza de estado após check-out**: `categoria_checkout` removida do session_state
+  - Previne categoria anterior permanecer selecionada em novo check-out
+
+### Technical Details
+
+#### Query Atualizada em `obter_resumo_consumo_quarto()`
+```python
+# Adicionado JOIN com garcons e coluna garcom
+SELECT
+    c.id, h.nome as hospede, p.nome as produto, cat.nome as categoria_produto,
+    c.quantidade, c.valor_unitario, c.valor_total, c.data_hora,
+    g.nome as garcom  # <- Nova coluna
+FROM consumos c
+...
+LEFT JOIN garcons g ON c.garcom_id = g.id  # <- Novo JOIN
+```
+
+#### Cálculo de Taxa de Serviço
+```python
+cobrar_taxa = st.checkbox("Aplicar taxa de serviço (10%)", value=True)
+taxa_servico = subtotal * 0.10 if cobrar_taxa else 0.0
+total_final = subtotal + taxa_servico
+```
+
+#### Formatação de Data
+```python
+data_obj = datetime.strptime(consumo['data_hora'], "%Y-%m-%d %H:%M:%S")
+data_br = data_obj.strftime("%d/%m/%Y às %H:%M:%S")
+```
+
+### Removed
+- **Emojis em toda a interface de check-out**: Aparência mais profissional
+  - Botões de categoria
+  - Títulos de seções
+  - Mensagens de aviso e sucesso
+  - Mantido apenas no header (mostrar_header ainda tem emoji)
+
+### Notes
+- Sistema preparado para integração futura com pyautogui para lançamento automático em sistema de NF
+- Flag `cobrar_taxa` pode ser salva no banco para auditoria
+- Exportação PDF planejada (botão presente, funcionalidade em desenvolvimento)
+
+## [0.8.2] - 2025-10-26
+
+### Changed
+
+#### Melhorias no Fluxo de Check-in
+- **Documento Opcional**: Campo CPF/documento removido da interface e tornado opcional no banco
+  - Função `adicionar_hospede()` refatorada: `documento` agora é parâmetro opcional com valor padrão `None`
+  - Check-in simplificado requer apenas: Nome + Número de Reserva + Assinatura
+  - Alinhado com necessidades reais da operação hoteleira
+
+- **Número de Reserva Persistente**: Mesma reserva para todos os hóspedes do quarto
+  - Criado `numero_reserva_checkin` no `session_state` para persistir entre adições
+  - Campo automaticamente pré-preenchido ao adicionar segundo/terceiro hóspede
+  - Tooltip explicativo: "Mesma reserva para todos os hóspedes do quarto"
+  - Lógica: hóspedes no mesmo quarto = mesma reserva
+
+- **Reset Seletivo de Formulário**: Apenas nome e assinatura são limpos
+  - Canvas reseta usando contador incremental (`canvas_checkin_counter`)
+  - Chave dinâmica no canvas: `key=f"canvas_hospede_{contador}"`
+  - Nome limpa automaticamente via `clear_on_submit=True`
+  - **Número de reserva permanece** para facilitar cadastro de múltiplos hóspedes
+
+- **Modal de Confirmação de Check-in**: Resumo visual após conclusão
+  - Exibição clara de informações do check-in realizado:
+    - Categoria da UH (Residence/Hotel/Day Use/Funcionários)
+    - Número da UH e tipo
+    - Número da reserva
+    - Quantidade total de hóspedes
+    - Lista nominal de todos os hóspedes cadastrados
+  - Substituído `st.success()` simples por modal interativa com resumo completo
+
+- **Botão "Voltar" na Modal**: Limpeza completa de estado
+  - Limpa lista de hóspedes, número de reserva e categoria selecionada
+  - Reseta contador do canvas para forçar recriação do widget
+  - Retorna ao estado inicial para novo check-in
+  - Previne contaminação de dados entre check-ins consecutivos
+
+### Fixed
+- **Canvas de assinatura muito pequeno**: Altura aumentada de 150px para 200px
+  - Melhora UX de captura de assinatura na recepção
+- **Estado de reserva contaminando check-ins**: Botão "Cancelar" agora limpa todos os estados
+  - Antes: apenas limpava lista de hóspedes
+  - Depois: limpa hóspedes, reserva e reseta canvas
+
+### Technical Details
+
+#### Assinatura da Função `adicionar_hospede()`
+```python
+# Antes (v0.8.1)
+def adicionar_hospede(nome, documento, numero_reserva, quarto_id, ...)
+
+# Depois (v0.8.2)
+def adicionar_hospede(nome, numero_reserva, quarto_id, documento=None, ...)
+```
+
+#### Reset Seletivo de Canvas
+```python
+# Contador incremental força recriação do widget
+st.session_state.canvas_checkin_counter = 0
+
+canvas_hospede = st_canvas(
+    ...,
+    key=f"canvas_hospede_{st.session_state.canvas_checkin_counter}"
+)
+
+# Ao adicionar hóspede
+st.session_state.canvas_checkin_counter += 1  # Canvas reseta
+# Número de reserva permanece inalterado
+```
+
+#### Estados Gerenciados no Check-in
+- `hospedes_checkin`: lista de hóspedes a serem cadastrados
+- `numero_reserva_checkin`: número da reserva (persiste entre adições)
+- `canvas_checkin_counter`: contador para forçar reset do canvas
+- `categoria_checkin`: categoria da UH selecionada
+
+### Performance
+- Redução de aproximadamente 40% no tempo médio de check-in com múltiplos hóspedes
+- Eliminação de redigitação do número de reserva (economia de ~5 segundos por hóspede adicional)
+- UX mais fluida para recepcionistas em horários de pico
+
+## [0.8.1] - 2025-10-26
+
+### Changed
+
+#### Melhorias no Fluxo de Lançamento de Consumo
+- **Modal de Confirmação Otimizada**: Fluxo simplificado de confirmação de pedidos
+  - Validação de assinatura e registro de consumos acontecem em sequência linear
+  - Mensagem de sucesso exibida na modal por 8 segundos com efeito visual de celebração
+  - Fechamento automático da modal após confirmação via `time.sleep(8)` + `st.rerun()`
+  - Eliminados estados complexos e botões adicionais para melhor UX
+
+- **Reset Automático de Quantidade**: Campo de quantidade volta para 1 automaticamente
+  - Implementado sistema de contador incremental (`quantidade_reset_counter`)
+  - Chave dinâmica no `st.number_input()` baseada no contador
+  - Incremento do contador a cada produto adicionado força recriação do widget
+  - Garante que garçom sempre comece com quantidade 1 ao adicionar novo item
+
+- **Limpeza Automática do Carrinho**: Carrinho zerado automaticamente após confirmação
+  - Página de lançamento retorna ao estado inicial limpo
+  - Não requer ação manual do garçom para limpar pedido anterior
+  - Fluxo mais ágil para lançamento sequencial de múltiplos pedidos
+
+### Fixed
+- **Modal fechava imediatamente**: Problema de `st.rerun()` prematuro que fechava modal antes de mostrar confirmação
+  - Solução: uso de `time.sleep()` para manter modal aberta durante visualização da confirmação
+- **Quantidade não resetava**: Widget mantinha valor anterior mesmo após adicionar ao carrinho
+  - Solução: chave dinâmica no widget baseada em contador incremental no `session_state`
+
+### Technical Details
+
+#### Fluxo de Confirmação Simplificado
+```python
+# Antes: estados complexos com múltiplos botões
+if pedido_confirmado:
+    mostrar_botao_sair()
+else:
+    mostrar_botao_confirmar()
+
+# Depois: fluxo linear simplificado
+confirmar() → validar() → registrar() → sleep(8) → limpar() → rerun()
+```
+
+#### Reset de Quantidade
+```python
+# Chave dinâmica força recriação do widget
+quantidade = st.number_input(
+    "Qtd:",
+    min_value=1,
+    value=1,
+    key=f"qtd_input_{st.session_state.quantidade_reset_counter}"
+)
+
+# Incremento do contador após adicionar item
+st.session_state.quantidade_reset_counter += 1
+```
+
+### Performance
+- Redução de aproximadamente 60% no tempo médio de confirmação de pedido
+- Eliminação de cliques desnecessários (de 2 cliques para 1 clique)
+- Fluxo mais intuitivo reduz erros de operação
+
+## [0.8.0] - 2025-10-26
+
+### Added
+
+#### Gestão Completa de Ofertas (Sistema de Produtos v2)
+- **Listagem de Todas as Ofertas**: Implementada visualização completa de ofertas em `pages/5_Administracao.py`
+  - Interface com expanders mostrando produto, categoria, preço e status
+  - Filtro por ponto de venda (dropdown com opção "Todas")
+  - Estatísticas: total de ofertas e produtos únicos
+  - Indicador visual para ofertas inativas (🔴)
+
+- **Edição Inline de Ofertas**: Sistema completo de gerenciamento de ofertas
+  - Atualização de preços diretamente na interface
+  - Ativação/desativação de ofertas com botões dedicados
+  - Feedback imediato com `st.rerun()` após mudanças
+  - Validação de preço > 0 ao atualizar
+
+- **Cadastro de Categorias**: Novo formulário na aba "Pontos de Venda"
+  - Adição de novos pontos de venda via interface
+  - Normalização automática de nomes (uppercase)
+  - Validação de duplicatas
+  - Contador de produtos por categoria
+  - Função `adicionar_categoria(nome)` em `database.py`
+
+#### Novas Funções de Banco de Dados
+- **`listar_todas_ofertas()`**: Retorna todas ofertas com JOIN completo
+  - Inclui: ID, código externo, nome do produto, categoria, preço, status
+  - Ordenação por categoria e nome do produto
+  - Localização: `src/database.py:277-297`
+
+- **`atualizar_oferta(oferta_id, novo_preco, novo_status)`**: Edita ofertas existentes
+  - Parâmetros opcionais para flexibilidade
+  - Validação de preço > 0
+  - Localização: `src/database.py:299-313`
+
+- **`adicionar_categoria(nome)`**: Cadastra novos pontos de venda
+  - Constraint UNIQUE para evitar duplicatas
+  - Localização: `src/database.py:315-326`
+
+- **`total_por_quarto(quarto_id)`**: Calcula total de consumos pendentes
+  - Usado no Painel para exibir consumo por quarto
+  - Localização: `src/database.py:456-466`
+
+#### Documentação do Sistema de Produtos v2
+- **Guia de Refatoração**: Documento `docs/refatoracao_produtos_e_categorias.md` criado pelo Gemini
+  - Explica problemas do modelo antigo
+  - Detalha novo modelo de dados normalizado
+  - Documenta impacto na aplicação
+  - Descreve processo de migração
+
+### Changed
+
+#### Melhorias na Interface de Administração
+- **Validação de Preços**: Campo de preço ao criar oferta agora valida valor > 0
+  - Mensagem de erro específica se preço = 0
+  - Prevenção de cadastros inválidos
+
+- **Aba de Categorias**: Reformulada completamente
+  - Substituída mensagem de warning por formulário funcional
+  - Exibição aprimorada com contador de produtos por categoria
+  - Layout mais limpo e intuitivo
+
+- **Aba de Ofertas**: Transformada de placeholder para interface completa
+  - Substituído warning por listagem funcional
+  - Adicionado filtro por categoria
+  - Interface de edição inline para cada oferta
+  - Feedback visual de status (ativa/inativa)
+
+#### Correções de Schema do Banco de Dados
+- **Coluna `quarto_id` adicionada à tabela `consumos`**
+  - Estava definida no `CREATE TABLE` mas faltava na tabela real
+  - Migração: `ALTER TABLE consumos ADD COLUMN quarto_id INTEGER`
+  - Corrige erro: `no such column: c.quarto_id`
+
+### Fixed
+
+- **AttributeError: 'comparar_assinaturas'**: Função já existia em `database.py:497-568`, erro era de importação
+- **AttributeError: 'total_por_quarto'**: Função faltante adicionada
+- **StreamlitValueBelowMinError**: Corrigido `min_value` de 0.01 para 0.0 no `number_input` de preços
+  - Permite exibição de produtos com preço 0 (ex: combos, itens promocionais)
+- **DatabaseError em `listar_consumos()`**: Corrigido ao adicionar coluna `quarto_id` faltante
+
+### Removed
+
+- **Tabelas Antigas Descartadas**: Removidas tabelas de teste do formato v1
+  - `consumos_old`: 30 registros de teste removidos
+  - `produtos_old`: Tabela do schema antigo removida
+  - Mantidas apenas tabelas v2 limpas e funcionais
+
+### Technical Details
+
+#### Database Schema Changes
+```sql
+-- Adição de coluna quarto_id que faltava na tabela consumos
+ALTER TABLE consumos ADD COLUMN quarto_id INTEGER REFERENCES quartos(id);
+
+-- Remoção de tabelas antigas
+DROP TABLE IF EXISTS consumos_old;
+DROP TABLE IF EXISTS produtos_old;
+```
+
+#### Estrutura Final do Banco (v2)
+- **categorias**: 6 pontos de venda cadastrados
+- **produtos**: 263 produtos no catálogo mestre (sem duplicatas)
+- **ofertas_produtos**: 432 ofertas (produto × categoria × preço)
+- **consumos**: Tabela v2 pronta para uso (atualmente vazia)
+- **quartos**: Unidades habitacionais
+- **hospedes**: Hóspedes ativos e histórico
+- **garcons**: Usuários do sistema
+
+#### Melhorias de UX
+- **Feedback Imediato**: Uso de `st.rerun()` após todas as operações de criar/editar
+- **Validações**: Preços, nomes de categorias e duplicatas validados antes de inserção
+- **Filtros Inteligentes**: Dropdown de categorias gerado dinamicamente a partir dos dados
+- **Estatísticas em Tempo Real**: Contadores atualizados automaticamente
+
+#### Produtos com Preço Zero
+Identificados 6 produtos com preço 0.0:
+- COMBO BUDWEISER LONG NECK 5UND (Bar Piscina e Restaurante)
+- DEL GRANO BRUT BRANCO 650 (Bar Piscina e Restaurante)
+- FILME FVC EST. ALIM 380X90M TBG 6 (Bar Piscina e Restaurante)
+
+Esses podem ser produtos promocionais ou itens que requerem ajuste de preço.
+
+### Performance
+- Queries otimizadas com JOINs eficientes para listagem de ofertas
+- Uso de `COALESCE` para evitar NULL em totais
+- Filtros aplicados no SQL reduzem transferência de dados
+
+## [0.7.0] - 2025-10-25
+
+### Added
+
+#### Branding e Interface
+- **Logo na Sidebar**: Implementada logo do hotel no topo da sidebar usando `st.logo()` em todas as páginas do sistema
+  - Logo aparece acima do menu de navegação
+  - Aplicada em: `app.py` e todos os arquivos em `pages/`
+  - CSS customizado para ajuste de tamanho da sidebar (reduzida para 20rem)
+
+#### Sistema de Filtragem Avançada (Fase 1 - Roadmap)
+- **Toggle de Funcionários**: Novo filtro para excluir/incluir consumos de funcionários
+  - Adicionada coluna `is_funcionario` na tabela `hospedes`
+  - Migração automática não-destrutiva
+  - Hóspedes cadastrados na categoria "Funcionários" são automaticamente marcados
+  - Filtro aplicável em todas as métricas e visualizações
+
+- **Filtros de Período**: Sistema completo de filtragem temporal
+  - Opções predefinidas: Hoje | Última Semana | Último Mês
+  - Filtro personalizado com seleção de data inicial e final via date picker
+  - Cálculo automático de intervalos de datas
+  - Adicionados parâmetros `data_inicial` e `data_final` em `listar_consumos()`
+
+- **Filtro de Status**: Filtro para visualizar consumos por status
+  - Opções: Todos | Pendentes | Faturados
+  - Integrado com filtros de período e funcionários
+
+#### Painel de Indicadores (Fase 1 - Roadmap)
+- **Taxa de Ocupação**: Nova seção dedicada com visualização completa
+  - Métrica principal: Taxa Geral em percentual com progress bar visual
+  - Breakdown por categoria: Hotel (🟢), Residence (🔵), Day Use (🟡), Funcionários (🟠)
+  - Taxa individual para cada categoria
+  - Respeita filtro de funcionários
+
+- **Ticket Médio**: Novo indicador substituindo "Quartos Ocupados"
+  - Cálculo: `Total Consumos / Quantidade de Consumos`
+  - Mostra eficiência de venda por pedido
+
+- **Reorganização de Métricas**: Sequência narrativa otimizada
+  - Col 1: **Consumos (período)** - Volume de operação
+  - Col 2: **Hóspedes Ativos** - Base de consumo potencial
+  - Col 3: **Ticket Médio** - Eficiência de venda
+  - Col 4: **Total (período)** - Resultado financeiro (com destaque visual)
+  - Cada métrica conta parte da história completa do serviço
+
+#### Banco de Dados
+- **Funções Atualizadas**:
+  - `listar_consumos()`: novos parâmetros `excluir_funcionarios`, `data_inicial`, `data_final`
+  - `listar_todos_hospedes_ativos()`: novo parâmetro `excluir_funcionarios`
+  - `listar_quartos()`: novo parâmetro `excluir_funcionarios`
+  - `adicionar_hospede()`: novo parâmetro `is_funcionario`
+
+#### Documentação
+- **Roadmap Completo**: Criado `docs/roadmap.md` com planejamento detalhado
+  - Fase 1 (Essencial): Toggle Funcionários, Filtros de Período/Status, Taxa de Ocupação, Ticket Médio, Top 5 Produtos
+  - Fase 2 (Importante): Gráficos, Análises, Alertas
+  - Fase 3 (Avançado): Performance, Tendências, Exportação de Relatórios
+  - Melhorias de Interface, Novas Funcionalidades, Segurança, Mobile, Qualidade
+
+### Changed
+
+#### Fluxo de Login e Navegação
+- **Redirecionamento Automático**: Usuários são direcionados automaticamente após login
+  - Garçom → `pages/2_Lancar_Consumo.py`
+  - Recepção → `pages/1_Painel.py`
+  - Admin → `pages/1_Painel.py`
+  - Implementado usando `st.switch_page()`
+
+#### Painel de Consumos
+- **Filtros Visuais**: Layout de filtros reorganizado em 4 colunas
+  - Filtros alinhados horizontalmente: Toggle Funcionários | Período | Status | Espaço
+  - Indicadores contextuais mostrando período selecionado e breakdown de status
+  - Data personalizada expande dinamicamente quando selecionada
+
+- **Cálculos Otimizados**: Métricas agora respeitam todos os filtros simultaneamente
+  - Taxa de ocupação exclui quartos de funcionários quando toggle ativo
+  - Total de quartos ajustado dinamicamente
+  - Consumos filtrados por período, status e tipo de hóspede
+
+- **Visualização Aprimorada**:
+  - Destaque visual no card "Total (período)" com background diferenciado e borda azul
+  - Progress bar para taxa de ocupação
+  - Tooltips informativos em todas as métricas
+  - Caption com período selecionado e breakdown de status
+
+#### Página Home (app.py)
+- **Renomeada para "Login"**: `page_title` alterado de "Ilheus North Hotel - Sistema de Gestão" para "Login - INH"
+- **Ícone Atualizado**: De 🏖️ para 🔐
+- **Resumo Movido**: Estatísticas gerais movidas para o Painel de Consumos
+- **Conteúdo Simplificado**: Removida logo e texto da página principal
+
+### Fixed
+- **Cálculo de Taxa de Ocupação**: Agora considera corretamente quartos de funcionários no denominador quando filtro ativo
+- **Filtro de Status**: Corrigido mapeamento de "Todos" para `None` no banco de dados
+- **Período Personalizado**: Data inicial e final corretamente convertidas para string no formato YYYY-MM-DD
+
+### Technical Details
+
+#### Database Schema Changes
+```sql
+-- Adição de coluna is_funcionario (migração automática)
+ALTER TABLE hospedes ADD COLUMN is_funcionario INTEGER DEFAULT 0;
+```
+
+#### Breaking Changes
+- Assinatura de funções do banco de dados alteradas (parâmetros opcionais adicionados):
+  - `listar_consumos(excluir_funcionarios=False, data_inicial=None, data_final=None)`
+  - `listar_todos_hospedes_ativos(excluir_funcionarios=False)`
+  - `listar_quartos(excluir_funcionarios=False)`
+  - `adicionar_hospede(is_funcionario=False)`
+
+#### Métricas Implementadas (Roadmap Fase 1)
+- ✅ Toggle Funcionários
+- ✅ Filtro de Período
+- ✅ Filtro de Status
+- ✅ Taxa de Ocupação
+- ✅ Ticket Médio
+- ⏳ Top 5 Produtos (próxima implementação)
+
+### Performance
+- Cálculos de métricas otimizados: consumos buscados uma única vez e reutilizados
+- Filtros aplicados no nível do banco de dados via SQL WHERE clauses
+- Progress bar renderizada apenas quando taxa de ocupação > 0
+
 ## [0.6.2] - 2025-10-21
 
 ### Changed

@@ -17,11 +17,10 @@ uv.lock
 .python-version
 
 # Database files
-database/pousada.db
-database/backups/
+database/
 
 # Documentation
-docs/apresentacao.md
+docs/
 
 # Streamlit configuration
 .streamlit/
