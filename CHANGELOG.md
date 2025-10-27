@@ -5,6 +5,71 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.4] - 2025-10-26
+
+### Added
+
+#### Exportação de PDF do Check-out
+- **Função `gerar_pdf_checkout()` em utils.py**: Geração profissional de comprovante de check-out em PDF
+  - Layout em formato A4 com margens profissionais
+  - **Cabeçalho**: Logo do hotel, título "ILHEUS NORTH HOTEL" em dourado, informações da UH e data/hora
+  - **Detalhamento completo de consumos**:
+    - Agrupamento por hóspede
+    - Cada pedido exibido com todas as informações (item, origem, garçom, quantidade, valor, data/hora)
+    - Assinaturas incluídas no PDF (imagens extraídas do banco de dados)
+    - Totais individuais por hóspede
+  - **Resumo financeiro profissional**:
+    - Breakdown por hóspede
+    - Subtotal, taxa de serviço, total geral
+    - Indicação visual quando taxa não é cobrada
+  - **Identidade visual aplicada**: Cores do config.toml (#d2b02d dourado, #182D4C azul escuro, #e7dbcb beige)
+  - **Paginação automática**: Nova página quando conteúdo não cabe
+  - **Rodapé**: Mensagem de agradecimento e timestamp de geração
+
+- **Botão "EXPORTAR PDF" funcional na página de Check-out**:
+  - Substituído placeholder "em desenvolvimento"
+  - Gera PDF com todos os dados do check-out atual
+  - Nome do arquivo: `checkout_UH{numero}_{timestamp}.pdf`
+  - Download via `st.download_button()` do Streamlit
+  - Tratamento de erros com mensagens claras
+
+- **Dependência reportlab**: Biblioteca para geração de PDFs
+  - Instalada via `uv add reportlab==4.4.4`
+  - Adicionada ao `requirements.txt` para deploy no Streamlit Cloud
+  - Suporte completo a imagens (logo e assinaturas)
+
+### Technical Details
+
+#### Estrutura da Função PDF
+```python
+def gerar_pdf_checkout(quarto_numero, categoria_nome, resumo, consumos_por_hospede,
+                       totais_por_hospede, subtotal, taxa_servico, total_final,
+                       cobrar_taxa=True):
+    # Retorna bytes do PDF gerado
+    # Usa reportlab.pdfgen.canvas para desenho
+    # ImageReader para incluir logo e assinaturas
+    # Paginação automática quando y_position < threshold
+```
+
+#### Cores RGB Convertidas
+```python
+COR_DOURADO = (0.82, 0.69, 0.18)      # #d2b02d
+COR_AZUL_ESCURO = (0.09, 0.18, 0.30)  # #182D4C
+COR_BEIGE = (0.91, 0.86, 0.80)        # #e7dbcb
+```
+
+#### Integração no Check-out
+- Botão gera PDF e exibe `st.download_button()` dinamicamente
+- Usa mesmos dados já calculados na tela (sem queries adicionais)
+- Nome do arquivo com timestamp para evitar sobrescritas
+
+### Notes
+- PDF gerado em memória (BytesIO) para evitar arquivos temporários em disco
+- Assinaturas convertidas de bytes (SQLite) para imagem (PIL) para ImageReader (reportlab)
+- Fontes padrão do reportlab: Helvetica, Helvetica-Bold, Helvetica-Oblique
+- Pronto para impressão ou envio por email/WhatsApp
+- Possível evolução: envio automático por email ao finalizar check-out
+
 ## [0.8.3] - 2025-10-26
 
 ### Changed

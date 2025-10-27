@@ -293,7 +293,36 @@ col1, col2, col3 = st.columns(3)
 
 with col1:
     if st.button("EXPORTAR PDF", use_container_width=True):
-        st.info("Funcionalidade de exportação PDF em desenvolvimento")
+        try:
+            # Gerar PDF
+            pdf_bytes = utils.gerar_pdf_checkout(
+                quarto_numero=quarto_numero,
+                categoria_nome=categoria_nome,
+                resumo=resumo,
+                consumos_por_hospede=consumos_por_hospede,
+                totais_por_hospede=totais_por_hospede,
+                subtotal=subtotal,
+                taxa_servico=taxa_servico,
+                total_final=total_final,
+                cobrar_taxa=cobrar_taxa
+            )
+
+            # Oferecer download
+            from datetime import datetime
+            nome_arquivo = f"checkout_UH{quarto_numero}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+
+            st.download_button(
+                label="Download PDF",
+                data=pdf_bytes,
+                file_name=nome_arquivo,
+                mime="application/pdf",
+                use_container_width=True
+            )
+
+            st.success("PDF gerado com sucesso! Clique no botão acima para baixar.")
+
+        except Exception as e:
+            st.error(f"Erro ao gerar PDF: {e}")
 
 with col2:
     if st.button("Cancelar", use_container_width=True):
