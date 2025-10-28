@@ -248,7 +248,7 @@ def modal_comanda(carrinho, hospede_id, hospede_nome, quarto_id, quarto_label):
 
                 # Aguardar 3 segundos para o usuário ver a confirmação
                 import time
-                time.sleep(6)
+                time.sleep(4)
 
                 # Limpar carrinho e resetar contador de quantidade
                 st.session_state.carrinho = []

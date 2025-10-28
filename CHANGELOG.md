@@ -5,6 +5,53 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.5] - 2025-10-26
+
+### Changed
+
+#### Refatoração e Melhorias na Exportação PDF
+- **Módulo dedicado `src/pdf_export.py`**: Função `gerar_pdf_checkout()` movida de `utils.py` para módulo próprio
+  - `utils.py` reduzido de ~476 para ~230 linhas
+  - Código mais organizado e modular
+  - Facilita manutenção e evolução da funcionalidade de PDF
+
+- **Layout em colunas para economizar espaço**: Redesign do detalhamento de consumos
+  - **Coluna esquerda (10cm)**: Informações do pedido (PEDIDO #N, produto, quantidade, valor)
+  - **Coluna direita (7cm)**: Assinatura do hóspede ao lado das informações
+  - Redução de ~40% no espaço vertical por pedido (de ~4cm para ~2.5cm)
+  - Mais pedidos cabem em uma única página
+  - Visual mais profissional e compacto
+
+- **Datas de check-in e check-out no cabeçalho**: Substituído data/hora única
+  - **Check-in**: Data/hora do primeiro hóspede ativo do quarto
+  - **Check-out**: Data/hora de geração do PDF
+  - Ambas no formato brasileiro: `DD/MM/YYYY às HH:MM`
+  - Nova função `obter_data_checkin_quarto()` em `database.py`
+
+### Technical Details
+
+#### Nova Função no Database
+```python
+def obter_data_checkin_quarto(quarto_id):
+    # Busca primeira data de check-in dos hóspedes ativos
+    # Retorna string YYYY-MM-DD HH:MM:SS ou None
+```
+
+#### Layout em Colunas
+```python
+col_info_width = 10*cm  # Coluna esquerda
+col_assinatura_x = margin + col_info_width + 0.5*cm  # Coluna direita
+# Assinatura alinhada ao topo do bloco de informações
+```
+
+#### Formatação de Datas
+```python
+# Suporta tanto string quanto datetime object
+if isinstance(data_checkin, str):
+    data_checkin_obj = datetime.strptime(data_checkin, "%Y-%m-%d %H:%M:%S")
+    data_checkin_br = data_checkin_obj.strftime("%d/%m/%Y às %H:%M")
+```
+
 ## [0.8.4] - 2025-10-26
 
 ### Added

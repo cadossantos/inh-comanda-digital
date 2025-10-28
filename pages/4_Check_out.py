@@ -8,6 +8,7 @@ from PIL import Image
 import io
 from src import database as db
 from src import utils
+from src import pdf_export
 import time
 
 # Configuração da página
@@ -148,7 +149,6 @@ if resumo['detalhes_consumos'].empty:
                     <p style='margin: 10px 0 0 0; color: #e7dbcb; text-align: center;'>UH {quarto_numero} liberada</p>
                 </div>
             """, unsafe_allow_html=True)
-            st.balloons()
             time.sleep(2)
 
             # Limpar estado
@@ -294,8 +294,11 @@ col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("EXPORTAR PDF", use_container_width=True):
         try:
+            # Buscar data de check-in do quarto
+            data_checkin = db.obter_data_checkin_quarto(quarto_id)
+
             # Gerar PDF
-            pdf_bytes = utils.gerar_pdf_checkout(
+            pdf_bytes = pdf_export.gerar_pdf_checkout(
                 quarto_numero=quarto_numero,
                 categoria_nome=categoria_nome,
                 resumo=resumo,
@@ -304,6 +307,7 @@ with col1:
                 subtotal=subtotal,
                 taxa_servico=taxa_servico,
                 total_final=total_final,
+                data_checkin=data_checkin,
                 cobrar_taxa=cobrar_taxa
             )
 

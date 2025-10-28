@@ -1,7 +1,9 @@
 # 🗺️ Roadmap - Sistema INH (Ilheus North Hotel)
 
 **Última atualização:** Outubro 2024
-**Versão Atual:** 0.6.2
+**Versão Atual:** 0.8.5
+
+**🎉 Fase 1 do Painel de Consumos - CONCLUÍDA!** ✅
 
 ---
 
@@ -11,30 +13,32 @@
 
 **Prioridade Alta - Implementação Imediata**
 
-- [ ] **Toggle Funcionários**
+- [x] **Toggle Funcionários** ✅
   - Habilitar/desabilitar contabilização de consumo de funcionários
   - Filtro aplicável em todas as métricas e relatórios
   - Persistir preferência na sessão do usuário
 
-- [ ] **Filtro de Período**
+- [x] **Filtro de Período** ✅
   - Opções predefinidas: Hoje | Última semana | Último mês
   - Opção customizada com seleção de data inicial e final
   - Aplicar filtro em todas as visualizações
 
-- [ ] **Taxa de Ocupação**
+- [x] **Taxa de Ocupação** ✅
   - Métrica: Percentual de quartos ocupados vs total
-  - Visualização em card destacado
-  - Comparação com período anterior
+  - Visualização em card destacado com breakdown por categoria
+  - Progress bar visual
 
-- [ ] **Total Faturado vs Pendente**
-  - Separar visualização de valores faturados e pendentes
-  - Gráfico comparativo
+- [x] **Total Faturado vs Pendente** ✅
+  - Separar visualização de valores faturados e pendentes (cards coloridos)
+  - Gráfico comparativo com evolução temporal (Altair line chart)
+  - Taxa de faturamento percentual
   - Evolução ao longo do período selecionado
 
-- [ ] **Top 5 Produtos Mais Vendidos**
-  - Ranking dos produtos com maior volume de vendas
-  - Quantidade vendida e receita gerada
+- [x] **Top 5 Produtos Mais Vendidos** ✅
+  - Ranking dos produtos com maior volume de vendas (gráfico de barras)
+  - Quantidade vendida e receita gerada (tabela detalhada)
   - Filtro por período e categoria
+  - Cores por categoria de produto
 
 ---
 

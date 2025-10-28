@@ -179,6 +179,26 @@ def listar_hospedes_quarto(quarto_id, apenas_ativos=True):
     conn.close()
     return df
 
+def obter_data_checkin_quarto(quarto_id):
+    """
+    Obtém a data de check-in do quarto (primeira data de check-in dos hóspedes ativos)
+
+    Args:
+        quarto_id: ID do quarto
+
+    Returns:
+        str: Data de check-in no formato YYYY-MM-DD HH:MM:SS, ou None se não houver
+    """
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT data_checkin FROM hospedes WHERE quarto_id=? AND ativo=1 ORDER BY data_checkin LIMIT 1",
+        (quarto_id,)
+    )
+    resultado = cursor.fetchone()
+    conn.close()
+    return resultado[0] if resultado else None
+
 def listar_todos_hospedes_ativos(excluir_funcionarios=False):
     conn = sqlite3.connect(DB_NAME)
     query = '''
@@ -474,6 +494,109 @@ def obter_assinatura(consumo_id):
     resultado = cursor.fetchone()
     conn.close()
     return resultado[0] if resultado else None
+
+def listar_consumos_agregados_por_data(status=None, excluir_funcionarios=False, data_inicial=None, data_final=None):
+    """
+    Lista consumos agregados por data e status para análise temporal
+
+    Args:
+        status: Filtro de status ('pendente', 'faturado', None para todos)
+        excluir_funcionarios: Se True, exclui consumos de funcionários
+        data_inicial: Data inicial no formato YYYY-MM-DD
+        data_final: Data final no formato YYYY-MM-DD
+
+    Returns:
+        DataFrame com colunas: data, status, total_valor, quantidade
+    """
+    conn = sqlite3.connect(DB_NAME)
+    query = '''
+        SELECT
+            DATE(c.data_hora) as data,
+            c.status,
+            SUM(c.valor_total) as total_valor,
+            COUNT(c.id) as quantidade
+        FROM consumos c
+        LEFT JOIN hospedes h ON c.hospede_id = h.id
+        WHERE 1=1
+    '''
+    params = []
+
+    if status:
+        query += " AND c.status = ?"
+        params.append(status)
+
+    if excluir_funcionarios:
+        query += " AND (h.is_funcionario IS NULL OR h.is_funcionario = 0)"
+
+    if data_inicial:
+        query += " AND DATE(c.data_hora) >= ?"
+        params.append(data_inicial)
+
+    if data_final:
+        query += " AND DATE(c.data_hora) <= ?"
+        params.append(data_final)
+
+    query += " GROUP BY DATE(c.data_hora), c.status ORDER BY data"
+
+    df = pd.read_sql_query(query, conn, params=params)
+    conn.close()
+    return df
+
+def top_produtos_vendidos(limite=5, excluir_funcionarios=False, data_inicial=None, data_final=None, categoria_id=None):
+    """
+    Retorna ranking dos produtos mais vendidos
+
+    Args:
+        limite: Número de produtos no ranking (padrão: 5)
+        excluir_funcionarios: Se True, exclui consumos de funcionários
+        data_inicial: Data inicial no formato YYYY-MM-DD
+        data_final: Data final no formato YYYY-MM-DD
+        categoria_id: ID da categoria para filtrar (opcional)
+
+    Returns:
+        DataFrame com colunas: produto, categoria, quantidade_vendida, receita_gerada
+    """
+    conn = sqlite3.connect(DB_NAME)
+    query = '''
+        SELECT
+            p.nome as produto,
+            cat.nome as categoria,
+            SUM(c.quantidade) as quantidade_vendida,
+            SUM(c.valor_total) as receita_gerada
+        FROM consumos c
+        JOIN ofertas_produtos o ON c.oferta_id = o.id
+        JOIN produtos p ON o.produto_id = p.id
+        JOIN categorias cat ON o.categoria_id = cat.id
+        LEFT JOIN hospedes h ON c.hospede_id = h.id
+        WHERE 1=1
+    '''
+    params = []
+
+    if excluir_funcionarios:
+        query += " AND (h.is_funcionario IS NULL OR h.is_funcionario = 0)"
+
+    if data_inicial:
+        query += " AND DATE(c.data_hora) >= ?"
+        params.append(data_inicial)
+
+    if data_final:
+        query += " AND DATE(c.data_hora) <= ?"
+        params.append(data_final)
+
+    if categoria_id:
+        query += " AND cat.id = ?"
+        params.append(categoria_id)
+
+    query += '''
+        GROUP BY p.id, p.nome, cat.nome
+        ORDER BY receita_gerada DESC
+        LIMIT ?
+    '''
+    params.append(limite)
+
+    df = pd.read_sql_query(query, conn, params=params)
+    conn.close()
+    return df
 
 # Funções de assinatura e outras não relacionadas a produtos/consumos mantidas como estão
 # ... (O resto do arquivo pode ser mantido, pois não foi alterado)
