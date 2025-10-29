@@ -317,3 +317,8 @@
 
 
 pensar estratégia e desenvolver automação para adicionar consumos com pyautogui no sistema que gera NF-e.
+Adicionar campo de observações
+Pensar fluxo de checkout independente para cada hospede pois as vezes um vai e outro fica
+
+Integrar opção de cancelamento, com motivo e rastreabilidade 
+adicionar opção de residence proprietário por conta do valor café

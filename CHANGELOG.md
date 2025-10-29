@@ -5,6 +5,97 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2025-10-26
+
+### Added
+
+#### 🎉 Fase 1 do Painel de Consumos - Concluída
+
+**Painel completo de análise de consumos com filtros dinâmicos e visualizações interativas**
+
+- **Filtros na Sidebar**: Controles globais reorganizados para melhor UX
+  - Toggle "Incluir Funcionários" (padrão: apenas hóspedes)
+  - Seletor de Período (Hoje/Última Semana/Último Mês/Personalizado)
+  - Seletor de Status (Todos/Pendentes/Faturados)
+  - Resumo visual dos filtros ativos
+
+- **Taxa de Ocupação**: Análise completa de ocupação dos quartos
+  - Taxa geral com progress bar visual
+  - Breakdown por categoria (Hotel, Residence, Day Use, Funcionários)
+  - Métricas individuais com emojis por categoria
+  - Respeita filtro de funcionários
+
+- **Resumo Geral**: Cards com indicadores-chave
+  - Total de consumos no período
+  - Hóspedes ativos
+  - Ticket médio (valor médio por pedido)
+  - Total financeiro do período (destaque visual)
+
+- **Faturado vs Pendente**: Análise financeira detalhada
+  - Cards coloridos comparativos:
+    - 🟡 Pendente (amarelo): Valor a receber
+    - 🟢 Faturado (verde): Já recebido
+    - 🔵 Taxa de Faturamento: % faturado do total
+  - Gráfico de evolução temporal (Plotly):
+    - Barras Agrupadas: Comparação dia a dia
+    - Linhas Separadas: Tendências ao longo do tempo
+    - Hover interativo com detalhes completos
+    - Formato brasileiro (DD/MM) e valores em R$
+
+- **Top 5 Produtos Mais Vendidos**: Ranking de produtos
+  - Gráfico de barras horizontal (Plotly)
+  - Cores diferenciadas por categoria
+  - Tabela detalhada: Produto | Categoria | Qtd | Receita
+  - Filtragem automática por período e funcionários
+
+### Changed
+
+#### Melhorias de UX e Organização
+- **Filtros movidos para sidebar**: Interface mais limpa e profissional
+- **Lógica do toggle invertida**: "Incluir Funcionários" ao invés de "Excluir"
+  - Padrão: apenas hóspedes (comportamento mais relevante para o negócio)
+  - Opcional: incluir funcionários para análise completa
+- **Resumo de filtros ativos**: Feedback visual na sidebar
+- **Debug removido**: Código de debug comentado após validação
+
+### Technical Details
+
+#### Novas Funções no Database (`src/database.py`)
+
+**`listar_consumos_agregados_por_data()`**
+```python
+def listar_consumos_agregados_por_data(status=None, excluir_funcionarios=False,
+                                       data_inicial=None, data_final=None):
+    # Agrega consumos por data e status
+    # Retorna: data, status, total_valor, quantidade
+    # Suporta filtros de período e funcionários
+```
+
+**`top_produtos_vendidos()`**
+```python
+def top_produtos_vendidos(limite=5, excluir_funcionarios=False,
+                         data_inicial=None, data_final=None, categoria_id=None):
+    # Ranking de produtos por receita
+    # Retorna: produto, categoria, quantidade_vendida, receita_gerada
+    # ORDER BY receita_gerada DESC
+```
+
+#### Visualizações com Plotly
+- Substituído Altair por Plotly para maior robustez
+- Conversão de datas: `pd.to_datetime()` antes de plotar
+- Gráficos interativos com zoom, pan e download PNG
+- Hover customizado com formato brasileiro
+- Formatação de eixos: `tickformat='%d/%m'` e `tickprefix='R$ '`
+
+#### Nova Dependência
+- **plotly==6.3.1**: Adicionado para gráficos interativos
+
+### Notes
+- Painel atende todos os requisitos da Fase 1 do roadmap
+- Preparado para Fase 2: Ticket Médio, Consumo ao Longo do Tempo, etc.
+- Performance otimizada com queries agregadas no banco
+- Interface responsiva e profissional
+
 ## [0.8.5] - 2025-10-26
 
 ### Changed
