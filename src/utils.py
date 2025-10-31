@@ -180,21 +180,6 @@ def aplicar_css_customizado():
             padding-top: 1rem;
             pandding-button: 2rem;
         }
-
-        /* Reduzir largura da sidebar em 25% (padrão ~21rem, novo ~16rem) */
-        section[data-testid="stSidebar"] {
-            width: 20rem !important;
-            min-width: 16rem !important;
-        }
-
-        section[data-testid="stSidebar"] > div {
-            width: 19rem !important;
-        }
-
-        /* Ajustar conteúdo principal para compensar */
-        .main .block-container {
-            max-width: calc(100% - 16rem) !important;
-        }
         </style>
     """, unsafe_allow_html=True)
 

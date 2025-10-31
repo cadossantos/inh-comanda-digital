@@ -322,3 +322,5 @@ Pensar fluxo de checkout independente para cada hospede pois as vezes um vai e o
 
 Integrar opção de cancelamento, com motivo e rastreabilidade 
 adicionar opção de residence proprietário por conta do valor café
+
+pesquisar btrix
